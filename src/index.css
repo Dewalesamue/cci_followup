@@ -1,0 +1,250 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;605;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* -----------------------------------------
+   GLOBAL DARK MODE STYLES & AUTO-MAPPERS
+   ----------------------------------------- */
+html.dark,
+.dark {
+  color-scheme: dark !important;
+}
+
+/* Reset root-level elements for global canvas color theme */
+.dark body,
+html.dark body,
+.dark #root,
+.dark .bg-slate-50,
+.dark .bg-gray-50,
+.dark .bg-neutral-50,
+.dark .bg-zinc-50 {
+  background-color: #090d16 !important; /* Rich Dark Ocean Slate */
+  color: #f8fafc !important; /* Slate-50 */
+}
+
+/* Card components background transformation */
+.dark .bg-white {
+  background-color: #111827 !important; /* Slate-900 card body */
+}
+
+/* Secondary dark sections, list elements and badges */
+.dark .bg-slate-100,
+.dark .bg-gray-100,
+.dark .bg-slate-55,
+.dark .bg-gray-50/70,
+.dark .bg-slate-50/70 {
+  background-color: #1a2235 !important; /* Sleek midnight gray */
+}
+
+/* Hover background states in dark mode */
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-gray-50:hover,
+.dark .hover\:bg-slate-100:hover,
+.dark .hover\:bg-slate-55:hover {
+  background-color: #242f4c !important;
+}
+
+/* Settings, tables, input fields, and lists borders */
+.dark .border-gray-100,
+.dark .border-gray-150,
+.dark .border-gray-200,
+.dark .border-slate-100,
+.dark .border-slate-150,
+.dark .border-slate-200,
+.dark .border-zinc-200,
+.dark .divide-gray-100,
+.dark .divide-slate-100 {
+  border-color: #1e293b !important; /* Soft Slate-800 borders */
+}
+
+.dark .divide-y > :not([hidden]) ~ :not([hidden]) {
+  border-color: #1e293b !important;
+}
+
+/* Input fields overrides */
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #111827 !important;
+  color: #f8fafc !important;
+  border-color: #1e293b !important;
+}
+
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15) !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748b !important; /* slate-500 placeholder */
+}
+
+/* Typography map to crisp lighter colors */
+.dark .text-slate-900,
+.dark .text-slate-800,
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-neutral-900,
+.dark .text-zinc-900 {
+  color: #f8fafc !important; /* space white */
+}
+
+.dark .text-slate-700,
+.dark .text-gray-700,
+.dark .text-slate-750,
+.dark .text-neutral-700 {
+  color: #e2e8f0 !important; /* Slate-200 soft off-white */
+}
+
+.dark .text-slate-600,
+.dark .text-gray-600,
+.dark .text-neutral-600 {
+  color: #cbd5e1 !important; /* Slate-300 readable light */
+}
+
+.dark .text-slate-500,
+.dark .text-gray-500,
+.dark .text-slate-400,
+.dark .text-gray-400,
+.dark .text-neutral-500 {
+  color: #94a3b8 !important; /* Slate-400 elegant muted */
+}
+
+/* Special color tags mapping for high contrast and readability */
+.dark .bg-teal-50 {
+  background-color: #042f2e !important; /* Teal-950 deep base */
+  color: #2dd4bf !important; /* Teal-400 crisp text */
+}
+.dark .border-teal-100 {
+  border-color: #115e59 !important; /* Teal-800 border */
+}
+.dark .text-teal-700 {
+  color: #2dd4bf !important;
+}
+
+.dark .bg-purple-50 {
+  background-color: #3b0764 !important; /* Purple-950 */
+  color: #c084fc !important; /* Purple-400 */
+}
+.dark .border-purple-100 {
+  border-color: #6b21a8 !important;
+}
+.dark .text-purple-700 {
+  color: #c084fc !important;
+}
+
+.dark .bg-amber-50 {
+  background-color: #451a03 !important; /* Amber-950 */
+  color: #fbbf24 !important; /* Amber-400 */
+}
+.dark .border-amber-100 {
+  border-color: #78350f !important;
+}
+.dark .text-amber-700 {
+  color: #fbbf24 !important;
+}
+
+.dark .bg-emerald-50,
+.dark .bg-emerald-50\/40 {
+  background-color: #022c22 !important; /* Emerald-950 */
+  color: #34d399 !important; /* Emerald-400 */
+}
+.dark .border-emerald-250,
+.dark .border-emerald-200 {
+  border-color: #065f46 !important;
+}
+.dark .text-emerald-700,
+.dark .text-emerald-600 {
+  color: #34d399 !important;
+}
+
+.dark .bg-rose-50 {
+  background-color: #4c0519 !important; /* Rose-950 */
+  color: #f43f5e !important; /* Rose-400 */
+}
+.dark .text-rose-600,
+.dark .text-rose-700 {
+  color: #f43f5e !important;
+}
+
+.dark .bg-red-50 {
+  background-color: #450a0a !important; /* Red-950 */
+  color: #f87171 !important; /* Red-400 */
+}
+.dark .border-red-200 {
+  border-color: #7f1d1d !important;
+}
+.dark .text-red-700 {
+  color: #f87171 !important;
+}
+
+.dark .bg-blue-50 {
+  background-color: #172554 !important; /* Blue-950 */
+  color: #60a5fa !important; /* Blue-400 */
+}
+.dark .border-blue-100 {
+  border-color: #1e40af !important;
+}
+.dark .text-blue-650,
+.dark .text-blue-600,
+.dark .text-blue-700 {
+  color: #60a5fa !important;
+}
+
+/* Table element hover stability */
+.dark tr:hover,
+.dark tbody tr:hover {
+  background-color: #1a2235 !important;
+}
+
+.dark tr {
+  color: #cbd5e1 !important;
+}
+
+.dark th {
+  color: #e2e8f0 !important;
+  background-color: #111827 !important;
+}
+
+/* Settings/Controls special containers */
+.dark .bg-slate-200 {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+}
+
+.dark .bg-slate-300,
+.dark .bg-slate-350 {
+  background-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+/* Sidebar Navigation overrides */
+.dark aside {
+  background-color: #0d1527 !important; /* Solid deep sidebar fill */
+  border-right-color: #1e293b !important;
+}
+
+.dark aside a,
+.dark aside button {
+  color: #e2e8f0 !important;
+}
+
+.dark aside a.active,
+.dark aside button.active {
+  background-color: #1e293b !important;
+  color: #3b82f6 !important;
+}
+
+/* Footer layout elements */
+.dark footer {
+  background-color: #0d1527 !important;
+  border-top-color: #1e293b !important;
+}
+
