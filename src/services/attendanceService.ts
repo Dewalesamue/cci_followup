@@ -10,11 +10,8 @@ export const attendanceService = {
     if (stored) {
       try {
         const all = JSON.parse(stored);
-        const session = authService.getCurrentSession();
-        if (session) {
-          return all.filter((a: any) => a.churchId === session.churchId);
-        }
-        return all.filter((a: any) => a.churchId === 'futamap');
+        const activeChurchId = authService.getCurrentChurchId();
+        return all.filter((a: any) => a.churchId === activeChurchId);
       } catch (e) {
         console.error("Error parsing attendance cache", e);
       }
@@ -24,8 +21,8 @@ export const attendanceService = {
 
   async fetchAttendance(): Promise<Attendance[]> {
     try {
-      const session = authService.getCurrentSession();
-      const url = session ? `/api/attendance?churchId=${session.churchId}` : '/api/attendance';
+      const activeChurchId = authService.getCurrentChurchId();
+      const url = `/api/attendance?churchId=${activeChurchId}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -38,8 +35,7 @@ export const attendanceService = {
           } catch {}
         }
         
-        const churchIdFilter = session ? session.churchId : 'futamap';
-        allRecords = allRecords.filter(a => a.churchId !== churchIdFilter);
+        allRecords = allRecords.filter(a => a.churchId !== activeChurchId);
         allRecords = [...data, ...allRecords];
         
         localStorage.setItem(STORAGE_KEY, JSON.stringify(allRecords));

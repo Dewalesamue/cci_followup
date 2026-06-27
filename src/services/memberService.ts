@@ -10,11 +10,8 @@ export const memberService = {
     if (stored) {
       try {
         const all = JSON.parse(stored);
-        const session = authService.getCurrentSession();
-        if (session) {
-          return all.filter((m: any) => m.churchId === session.churchId);
-        }
-        return all.filter((m: any) => m.churchId === 'futamap');
+        const activeChurchId = authService.getCurrentChurchId();
+        return all.filter((m: any) => m.churchId === activeChurchId);
       } catch (e) {
         console.error("Error parsing members list from cache", e);
       }
@@ -24,8 +21,8 @@ export const memberService = {
 
   async fetchMembers(): Promise<Member[]> {
     try {
-      const session = authService.getCurrentSession();
-      const url = session ? `/api/members?churchId=${session.churchId}` : '/api/members';
+      const activeChurchId = authService.getCurrentChurchId();
+      const url = `/api/members?churchId=${activeChurchId}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -40,8 +37,7 @@ export const memberService = {
         }
         
         // Replace items from this churchId in our cache
-        const churchIdFilter = session ? session.churchId : 'futamap';
-        allMembers = allMembers.filter(m => m.churchId !== churchIdFilter);
+        allMembers = allMembers.filter(m => m.churchId !== activeChurchId);
         allMembers = [...data, ...allMembers];
         
         localStorage.setItem(STORAGE_KEY, JSON.stringify(allMembers));

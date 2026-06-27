@@ -9,11 +9,8 @@ export const activityService = {
     if (stored) {
       try {
         const all = JSON.parse(stored);
-        const session = authService.getCurrentSession();
-        if (session) {
-          return all.filter((a: any) => a.churchId === session.churchId);
-        }
-        return all.filter((a: any) => a.churchId === 'futamap');
+        const activeChurchId = authService.getCurrentChurchId();
+        return all.filter((a: any) => a.churchId === activeChurchId);
       } catch (e) {
         console.error("Error parsing activities cache", e);
       }
@@ -23,8 +20,8 @@ export const activityService = {
 
   async fetchActivities(): Promise<RecentActivity[]> {
     try {
-      const session = authService.getCurrentSession();
-      const url = session ? `/api/activities?churchId=${session.churchId}` : '/api/activities';
+      const activeChurchId = authService.getCurrentChurchId();
+      const url = `/api/activities?churchId=${activeChurchId}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -37,8 +34,7 @@ export const activityService = {
           } catch {}
         }
         
-        const churchIdFilter = session ? session.churchId : 'futamap';
-        allActivities = allActivities.filter(a => a.churchId !== churchIdFilter);
+        allActivities = allActivities.filter(a => a.churchId !== activeChurchId);
         allActivities = [...data, ...allActivities];
         
         localStorage.setItem(STORAGE_KEY, JSON.stringify(allActivities.slice(0, 100)));

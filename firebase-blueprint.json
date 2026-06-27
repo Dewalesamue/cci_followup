@@ -1,0 +1,205 @@
+{
+  "entities": {
+    "Church": {
+      "title": "Church",
+      "description": "Church registration details representing SaaS tenants",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "passwordHash": { "type": "string" },
+        "mapName": { "type": "string" },
+        "logoName": { "type": "string" }
+      },
+      "required": ["id", "name", "passwordHash", "mapName", "logoName"]
+    },
+    "AppSettings": {
+      "title": "AppSettings",
+      "description": "SaaS Tenant-Specific Preferences",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "mapName": { "type": "string" },
+        "churchName": { "type": "string" },
+        "themeColor": { "type": "string" },
+        "logoName": { "type": "string" }
+      },
+      "required": ["id", "mapName", "churchName", "themeColor", "logoName"]
+    },
+    "Member": {
+      "title": "Member",
+      "description": "Registered church fellowship member details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "churchId": { "type": "string" },
+        "fullName": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "gender": { "type": "string" },
+        "department": { "type": "string" },
+        "level": { "type": "string" },
+        "faculty": { "type": "string" },
+        "residence": { "type": "string" },
+        "birthday": { "type": "string" },
+        "dateJoined": { "type": "string" },
+        "email": { "type": "string" },
+        "status": { "type": "string" },
+        "mapName": { "type": "string" },
+        "passwordHash": { "type": "string" },
+        "profilePicture": { "type": "string" },
+        "bio": { "type": "string" },
+        "interests": { "type": "array" },
+        "ministryInvolvement": { "type": "array" },
+        "socialVisibilityOptIn": { "type": "boolean" }
+      },
+      "required": ["id", "churchId", "fullName", "phoneNumber", "gender", "department", "level", "faculty", "residence", "birthday", "dateJoined", "status", "mapName"]
+    },
+    "Visitor": {
+      "title": "Visitor",
+      "description": "Information about first-time church visitors",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "churchId": { "type": "string" },
+        "fullName": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "gender": { "type": "string" },
+        "invitedBy": { "type": "string" },
+        "dateVisited": { "type": "string" },
+        "prayerRequest": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "churchId", "fullName", "phoneNumber", "gender", "invitedBy", "dateVisited", "status"]
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "description": "Attendance log entries for service tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "churchId": { "type": "string" },
+        "memberId": { "type": "string" },
+        "date": { "type": "string" },
+        "serviceType": { "type": "string" }
+      },
+      "required": ["id", "churchId", "memberId", "date", "serviceType"]
+    },
+    "PrayerRequest": {
+      "title": "PrayerRequest",
+      "description": "Prayer request submissions from members and visitors",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "churchId": { "type": "string" },
+        "fullName": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "request": { "type": "string" },
+        "dateSubmitted": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "churchId", "fullName", "phoneNumber", "request", "dateSubmitted", "status"]
+    },
+    "FollowUp": {
+      "title": "FollowUp",
+      "description": "Members flagged as needing connection follow-ups",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "churchId": { "type": "string" },
+        "name": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "reason": { "type": "string" },
+        "lastAttendanceDate": { "type": "string" },
+        "status": { "type": "string" },
+        "notes": { "type": "array" }
+      },
+      "required": ["id", "churchId", "name", "phoneNumber", "reason", "status"]
+    },
+    "RecentActivity": {
+      "title": "RecentActivity",
+      "description": "System event activity log logs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "churchId": { "type": "string" },
+        "type": { "type": "string" },
+        "description": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "memberName": { "type": "string" }
+      },
+      "required": ["id", "churchId", "type", "description", "timestamp"]
+    },
+    "FellowshipConnection": {
+      "title": "FellowshipConnection",
+      "description": "Member-to-member fellowship connection links",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "churchId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "status": { "type": "string" },
+        "dateRequested": { "type": "string" }
+      },
+      "required": ["id", "churchId", "senderId", "receiverId", "status", "dateRequested"]
+    },
+    "FellowshipNote": {
+      "title": "FellowshipNote",
+      "description": "Messages and notes sent between fellowship members",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "churchId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "message": { "type": "string" },
+        "dateSent": { "type": "string" },
+        "theme": { "type": "string" }
+      },
+      "required": ["id", "churchId", "senderId", "senderName", "receiverId", "message", "dateSent"]
+    }
+  },
+  "firestore": {
+    "churches": {
+      "schema": "Church",
+      "description": "Collection of SaaS tenant churches"
+    },
+    "appSettings": {
+      "schema": "AppSettings",
+      "description": "Tenant preferences and color schemes"
+    },
+    "members": {
+      "schema": "Member",
+      "description": "Registered fellowship members"
+    },
+    "visitors": {
+      "schema": "Visitor",
+      "description": "First-time church visitors"
+    },
+    "attendance": {
+      "schema": "Attendance",
+      "description": "Attendance tracking registers"
+    },
+    "prayerRequests": {
+      "schema": "PrayerRequest",
+      "description": "Intercessory prayer requests"
+    },
+    "followUps": {
+      "schema": "FollowUp",
+      "description": "Follow-up workflows for members in transition"
+    },
+    "recentActivities": {
+      "schema": "RecentActivity",
+      "description": "Recent administrative activity logs"
+    },
+    "fellowshipConnections": {
+      "schema": "FellowshipConnection",
+      "description": "Peer social connection graphs"
+    },
+    "fellowshipNotes": {
+      "schema": "FellowshipNote",
+      "description": "Fellowship encouraging messages and notes"
+    }
+  }
+}

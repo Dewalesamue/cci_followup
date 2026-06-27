@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { prayerService } from '../../services/prayerService';
 import { authService } from '../../services/authService';
 import { HeartHandshake, CheckCircle, User, Phone, ClipboardCheck, MessageSquare, ArrowLeft, Sparkles, Building2 } from 'lucide-react';
@@ -12,6 +12,24 @@ interface PrayerSubmissionProps {
 export default function PrayerSubmission({ onBackToPortal, mapName: propMapName, defaultChurchId = 'futamap' }: PrayerSubmissionProps) {
   // Available multi-tenant churches
   const [registeredChurches, setRegisteredChurches] = useState(() => authService.getChurchesList());
+
+  useEffect(() => {
+    let active = true;
+    const fetchLatest = async () => {
+      try {
+        await authService.syncChurches();
+        if (active) {
+          setRegisteredChurches(authService.getChurchesList());
+        }
+      } catch (err) {
+        console.error('Error syncing churches on mount:', err);
+      }
+    };
+    fetchLatest();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const [formData, setFormData] = useState({
     churchId: defaultChurchId,

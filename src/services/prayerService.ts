@@ -10,11 +10,8 @@ export const prayerService = {
     if (stored) {
       try {
         const all = JSON.parse(stored);
-        const session = authService.getCurrentSession();
-        if (session) {
-          return all.filter((p: any) => p.churchId === session.churchId);
-        }
-        return all.filter((p: any) => p.churchId === 'futamap');
+        const activeChurchId = authService.getCurrentChurchId();
+        return all.filter((p: any) => p.churchId === activeChurchId);
       } catch (e) {
         console.error("Error parsing prayer requests cache", e);
       }
@@ -24,8 +21,8 @@ export const prayerService = {
 
   async fetchPrayerRequests(): Promise<PrayerRequest[]> {
     try {
-      const session = authService.getCurrentSession();
-      const url = session ? `/api/prayer-requests?churchId=${session.churchId}` : '/api/prayer-requests';
+      const activeChurchId = authService.getCurrentChurchId();
+      const url = `/api/prayer-requests?churchId=${activeChurchId}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -38,8 +35,7 @@ export const prayerService = {
           } catch {}
         }
         
-        const churchIdFilter = session ? session.churchId : 'futamap';
-        allRequests = allRequests.filter(p => p.churchId !== churchIdFilter);
+        allRequests = allRequests.filter(p => p.churchId !== activeChurchId);
         allRequests = [...data, ...allRequests];
         
         localStorage.setItem(STORAGE_KEY, JSON.stringify(allRequests));

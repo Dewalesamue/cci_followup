@@ -6,6 +6,7 @@ import SearchBar from '../SearchBar';
 import {
   Phone,
   MessageSquare,
+  MessageCircle,
   PlusCircle,
   FileText,
   CalendarCheck,
@@ -128,9 +129,22 @@ export default function FollowUpView({
                   }`}
                 >
                   <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-bold text-gray-900 text-sm">{item.name}</h4>
-                      <p className="text-[10px] font-mono font-bold text-gray-400 mt-0.5">{item.phoneNumber}</p>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-gray-900 text-sm truncate">{item.name}</h4>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] font-mono font-bold text-gray-400">{item.phoneNumber}</span>
+                        <a
+                          href={`https://wa.me/${item.phoneNumber.replace(/[^0-9]/g, '').replace(/^0/, '234')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-0.5 text-[9px] bg-emerald-50 text-emerald-700 px-1.5 py-0.2 rounded font-bold border border-emerald-100/50 hover:bg-emerald-100"
+                          title="Message on WhatsApp"
+                        >
+                          <MessageCircle className="w-2.5 h-2.5 text-emerald-600 fill-emerald-600/20" />
+                          <span>WA</span>
+                        </a>
+                      </div>
                     </div>
                     <StatusBadge status={item.status} />
                   </div>
@@ -160,8 +174,18 @@ export default function FollowUpView({
                   </div>
                   <div className="ml-3.5">
                     <h3 className="text-lg font-bold text-gray-900 leading-tight">{activeEntry.name}</h3>
-                    <div className="flex items-center text-xs text-gray-500 font-mono mt-1 space-x-2">
-                      <span>{activeEntry.phoneNumber}</span>
+                    <div className="flex items-center text-xs text-gray-500 mt-1.5 gap-2.5">
+                      <span className="font-mono">{activeEntry.phoneNumber}</span>
+                      <a
+                        href={`https://wa.me/${activeEntry.phoneNumber.replace(/[^0-9]/g, '').replace(/^0/, '234')}?text=${encodeURIComponent(`Hello ${activeEntry.name},`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-lg font-bold border border-emerald-150 hover:bg-emerald-100 transition-colors"
+                        title="Message on WhatsApp"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600/20 shrink-0" />
+                        <span>Chat on WhatsApp</span>
+                      </a>
                     </div>
                   </div>
                 </div>

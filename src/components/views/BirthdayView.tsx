@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Member } from '../../types';
-import { Cake, Sparkles, Gift, Send, Calendar, Phone, Mail } from 'lucide-react';
+import { Cake, Sparkles, Gift, Send, Calendar, Phone, Mail, MessageCircle } from 'lucide-react';
 
 interface BirthdayViewProps {
   members: Member[];
@@ -9,8 +9,8 @@ interface BirthdayViewProps {
 export default function BirthdayView({ members }: BirthdayViewProps) {
   // Birthday calculations
   const birthdayReminders = useMemo(() => {
-    const todayStr = '2026-06-17'; // Keep aligned relative to metadata local time
-    const today = new Date(todayStr);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const todayMonth = today.getMonth() + 1;
     const todayDay = today.getDate();
 
@@ -18,21 +18,23 @@ export default function BirthdayView({ members }: BirthdayViewProps) {
       if (!m.birthday) return null;
 
       const birthParts = m.birthday.split('-');
-      const birthMonth = parseInt(birthParts[1]);
-      const birthDay = parseInt(birthParts[2]);
+      const birthMonth = parseInt(birthParts[1], 10);
+      const birthDay = parseInt(birthParts[2], 10);
 
-      // Calculate days remaining
-      let targetYear = today.getFullYear();
-      let targetBirthday = new Date(targetYear, birthMonth - 1, birthDay);
+      // Determine next occurrence of this birthday
+      const currentYear = today.getFullYear();
+      let targetBirthday = new Date(currentYear, birthMonth - 1, birthDay);
+      targetBirthday.setHours(0, 0, 0, 0);
 
-      // If already passed this year, look at next year
-      if (targetBirthday < today && !(birthMonth === todayMonth && birthDay === todayDay)) {
-        targetYear += 1;
-        targetBirthday = new Date(targetYear, birthMonth - 1, birthDay);
+      // If the birthday is in the past for this year, check the next year
+      if (targetBirthday.getTime() < today.getTime()) {
+        targetBirthday = new Date(currentYear + 1, birthMonth - 1, birthDay);
+        targetBirthday.setHours(0, 0, 0, 0);
       }
 
+      // Calculate days remaining using Math.round to account for daylight saving changes smoothly
       const diffTime = targetBirthday.getTime() - today.getTime();
-      const daysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+      const daysRemaining = Math.max(0, Math.round(diffTime / (1000 * 60 * 60 * 24)));
       const isToday = birthMonth === todayMonth && birthDay === todayDay;
 
       return {
@@ -104,6 +106,15 @@ export default function BirthdayView({ members }: BirthdayViewProps) {
                 </div>
                 {/* Contact triggers */}
                 <div className="flex space-x-2">
+                  <a
+                    href={`https://wa.me/${b.phoneNumber.replace(/[^0-9]/g, '').replace(/^0/, '234')}?text=${encodeURIComponent(`Happy Birthday ${b.fullName}! Wishing you a wonderful year ahead!`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition-all border border-emerald-500/20"
+                    title="Wish Happy Birthday on WhatsApp"
+                  >
+                    <MessageCircle className="w-4 h-4 fill-white/10" />
+                  </a>
                   <a
                     href={`tel:${b.phoneNumber}`}
                     className="p-2.5 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-all border border-white/10"

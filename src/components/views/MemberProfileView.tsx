@@ -24,6 +24,7 @@ import {
   X,
   Check,
   MessageSquare,
+  MessageCircle,
   Send,
   ShieldAlert,
   Flame
@@ -394,9 +395,21 @@ export default function MemberProfileView({
 
               {/* Core Details list */}
               <div className="border-t border-gray-50 pt-4 text-left space-y-3.5 text-xs text-gray-650">
-                <div className="flex items-center">
-                  <Phone className="w-4 h-4 text-gray-400 mr-3 shrink-0" />
-                  <span className="font-semibold text-gray-800">{member.phoneNumber}</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <Phone className="w-4 h-4 text-gray-400 mr-3 shrink-0" />
+                    <span className="font-semibold text-gray-800">{member.phoneNumber}</span>
+                  </div>
+                  <a
+                    href={`https://wa.me/${member.phoneNumber.replace(/[^0-9]/g, '').replace(/^0/, '234')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg font-bold border border-emerald-100 hover:bg-emerald-100 transition-colors"
+                    title="Message on WhatsApp"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600/20 shrink-0" />
+                    <span>WhatsApp</span>
+                  </a>
                 </div>
                 <div className="flex items-center">
                   <Mail className="w-4 h-4 text-gray-400 mr-3 shrink-0" />
@@ -415,7 +428,7 @@ export default function MemberProfileView({
               </div>
 
               {/* Send Direct Message CTA button */}
-              <div className="pt-2">
+              <div className="pt-2 space-y-2">
                 <button
                   type="button"
                   onClick={() => setIsChatOpen(true)}
@@ -424,6 +437,15 @@ export default function MemberProfileView({
                   <MessageSquare className="w-4 h-4 shrink-0" />
                   Send Message / Chat DMs
                 </button>
+                <a
+                  href={`https://wa.me/${member.phoneNumber.replace(/[^0-9]/g, '').replace(/^0/, '234')}?text=${encodeURIComponent(`Hello ${member.fullName},`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black tracking-wide transition-all flex items-center justify-center gap-1.5 shadow-sm hover:shadow-emerald-500/10 cursor-pointer"
+                >
+                  <MessageCircle className="w-4 h-4 shrink-0 fill-white/20" />
+                  Chat on WhatsApp
+                </a>
               </div>
             </div>
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { authService } from '../../services/authService';
 import { motion } from 'motion/react';
 import { Eye, EyeOff, Lock, Building2, Sparkles, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react';
@@ -26,7 +26,25 @@ export default function AdminLogin({ onLoginSuccess, onBackToPortal, initialIsRe
   const [regMapName, setRegMapName] = useState('MAP');
   const [regLogoName, setRegLogoName] = useState('');
 
-  const registeredChurches = authService.getChurchesList();
+  const [registeredChurches, setRegisteredChurches] = useState(() => authService.getChurchesList());
+
+  useEffect(() => {
+    let active = true;
+    const fetchLatest = async () => {
+      try {
+        await authService.syncChurches();
+        if (active) {
+          setRegisteredChurches(authService.getChurchesList());
+        }
+      } catch (err) {
+        console.error('Error syncing churches on mount:', err);
+      }
+    };
+    fetchLatest();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleSuggestClick = (name: string) => {
     setChurchName(name);

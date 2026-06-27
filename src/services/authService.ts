@@ -46,6 +46,10 @@ function getChurches(): Church[] {
 }
 
 export const authService = {
+  async syncChurches(): Promise<void> {
+    await syncChurches();
+  },
+
   getChurchesList(): { id: string; name: string; mapName: string }[] {
     return getChurches().map(c => ({ id: c.id, name: c.name, mapName: c.mapName }));
   },
@@ -185,37 +189,26 @@ export const authService = {
     sessionStorage.removeItem(MEMBER_SESSION_STORAGE_KEY);
   },
 
+  getCurrentChurchId(): string {
+    const adminSession = this.getCurrentSession();
+    if (adminSession?.churchId) return adminSession.churchId;
+    const memberSession = this.getCurrentMemberSession();
+    if (memberSession?.churchId) return memberSession.churchId;
+    return 'futamap';
+  },
+
   async resetMemberPassword(emailOrPhone: string, newPassword: string): Promise<void> {
     const passwordHash = hashPassword(newPassword);
 
-    // To reset, we find the member, then update their password hash
-    // We can do a fetch to members list, find the match, then issue a PUT
-    const membersRes = await fetch('/api/members');
-    if (!membersRes.ok) throw new Error('Failed to retrieve system profiles.');
-
-    const allMembers: any[] = await membersRes.json();
-    const cleanInput = emailOrPhone.toLowerCase().trim().replace(/[\s\-\+\(\)]/g, '');
-
-    const matched = allMembers.find(m => {
-      const dbEmail = m.email ? m.email.toLowerCase().trim() : '';
-      const dbPhoneClean = m.phoneNumber.replace(/[\s\-\+\(\)]/g, '');
-      const isEmailMatch = m.email && dbEmail === emailOrPhone.toLowerCase().trim();
-      const isPhoneMatch = dbPhoneClean.endsWith(cleanInput) || cleanInput.endsWith(dbPhoneClean);
-      return isEmailMatch || isPhoneMatch;
-    });
-
-    if (!matched) {
-      throw new Error('No existing member profile is linked to this phone number or email.');
-    }
-
-    const updateRes = await fetch(`/api/members/${matched.id}`, {
-      method: 'PUT',
+    const res = await fetch('/api/auth/member-reset-password', {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ passwordHash })
+      body: JSON.stringify({ emailOrPhone, passwordHash })
     });
 
-    if (!updateRes.ok) {
-      throw new Error('Failed to update member credentials.');
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error || 'Failed to update member credentials.');
     }
   }
 };

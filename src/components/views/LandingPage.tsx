@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { ArrowRight, Users, UserPlus, HeartHandshake, CalendarCheck, PhoneCall, Cake, Sparkles, QrCode } from 'lucide-react';
 import { authService } from '../../services/authService';
 
@@ -10,7 +11,25 @@ interface LandingPageProps {
 }
 
 export default function LandingPage({ onNavigate, churchName, mapName, activeChurchId, onChurchChange }: LandingPageProps) {
-  const registeredChurches = authService.getChurchesList();
+  const [registeredChurches, setRegisteredChurches] = useState(() => authService.getChurchesList());
+
+  useEffect(() => {
+    let active = true;
+    const fetchLatest = async () => {
+      try {
+        await authService.syncChurches();
+        if (active) {
+          setRegisteredChurches(authService.getChurchesList());
+        }
+      } catch (err) {
+        console.error('Error syncing churches on mount:', err);
+      }
+    };
+    fetchLatest();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const features = [
     {

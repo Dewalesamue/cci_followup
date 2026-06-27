@@ -3,7 +3,7 @@ import { Visitor } from '../../types';
 import { visitorService } from '../../services/visitorService';
 import StatusBadge from '../StatusBadge';
 import SearchBar from '../SearchBar';
-import { Calendar, Phone, UsersIcon, Sparkles, MessageSquare, ChevronRight, UserPlus } from 'lucide-react';
+import { Calendar, Phone, UsersIcon, Sparkles, MessageSquare, MessageCircle, ChevronRight, UserPlus } from 'lucide-react';
 
 interface VisitorsViewProps {
   visitors: Visitor[];
@@ -108,9 +108,21 @@ export default function VisitorsView({
 
               {/* Invitation logs */}
               <div className="space-y-2 pt-2 border-t border-gray-50 text-xs text-gray-650">
-                <div className="flex items-center">
-                  <Phone className="w-3.5 h-3.5 mr-2.5 text-gray-400 shrink-0" />
-                  <span className="font-semibold text-gray-800">{visitor.phoneNumber}</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <Phone className="w-3.5 h-3.5 mr-2.5 text-gray-400 shrink-0" />
+                    <span className="font-semibold text-gray-800">{visitor.phoneNumber}</span>
+                  </div>
+                  <a
+                    href={`https://wa.me/${visitor.phoneNumber.replace(/[^0-9]/g, '').replace(/^0/, '234')}?text=${encodeURIComponent(`Hello ${visitor.fullName}, thank you for visiting us!`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-700 px-2 py-1 rounded-lg font-bold border border-emerald-100 hover:bg-emerald-100 transition-colors"
+                    title="Message on WhatsApp"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600/20 shrink-0" />
+                    <span>WhatsApp</span>
+                  </a>
                 </div>
                 <div className="flex items-center">
                   <Calendar className="w-3.5 h-3.5 mr-2.5 text-gray-400 shrink-0" />

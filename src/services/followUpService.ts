@@ -10,11 +10,8 @@ export const followUpService = {
     if (stored) {
       try {
         const all = JSON.parse(stored);
-        const session = authService.getCurrentSession();
-        if (session) {
-          return all.filter((f: any) => f.churchId === session.churchId);
-        }
-        return all.filter((f: any) => f.churchId === 'futamap');
+        const activeChurchId = authService.getCurrentChurchId();
+        return all.filter((f: any) => f.churchId === activeChurchId);
       } catch (e) {
         console.error("Error parsing followups cache", e);
       }
@@ -24,8 +21,8 @@ export const followUpService = {
 
   async fetchFollowUps(): Promise<FollowUp[]> {
     try {
-      const session = authService.getCurrentSession();
-      const url = session ? `/api/follow-ups?churchId=${session.churchId}` : '/api/follow-ups';
+      const activeChurchId = authService.getCurrentChurchId();
+      const url = `/api/follow-ups?churchId=${activeChurchId}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -38,8 +35,7 @@ export const followUpService = {
           } catch {}
         }
         
-        const churchIdFilter = session ? session.churchId : 'futamap';
-        allFollowups = allFollowups.filter(f => f.churchId !== churchIdFilter);
+        allFollowups = allFollowups.filter(f => f.churchId !== activeChurchId);
         allFollowups = [...data, ...allFollowups];
         
         localStorage.setItem(STORAGE_KEY, JSON.stringify(allFollowups));

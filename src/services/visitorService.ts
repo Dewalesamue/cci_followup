@@ -11,11 +11,8 @@ export const visitorService = {
     if (stored) {
       try {
         const all = JSON.parse(stored);
-        const session = authService.getCurrentSession();
-        if (session) {
-          return all.filter((v: any) => v.churchId === session.churchId);
-        }
-        return all.filter((v: any) => v.churchId === 'futamap');
+        const activeChurchId = authService.getCurrentChurchId();
+        return all.filter((v: any) => v.churchId === activeChurchId);
       } catch (e) {
         console.error("Error parsing visitors cache", e);
       }
@@ -25,8 +22,8 @@ export const visitorService = {
 
   async fetchVisitors(): Promise<Visitor[]> {
     try {
-      const session = authService.getCurrentSession();
-      const url = session ? `/api/visitors?churchId=${session.churchId}` : '/api/visitors';
+      const activeChurchId = authService.getCurrentChurchId();
+      const url = `/api/visitors?churchId=${activeChurchId}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -39,8 +36,7 @@ export const visitorService = {
           } catch {}
         }
         
-        const churchIdFilter = session ? session.churchId : 'futamap';
-        allVisitors = allVisitors.filter(v => v.churchId !== churchIdFilter);
+        allVisitors = allVisitors.filter(v => v.churchId !== activeChurchId);
         allVisitors = [...data, ...allVisitors];
         
         localStorage.setItem(STORAGE_KEY, JSON.stringify(allVisitors));

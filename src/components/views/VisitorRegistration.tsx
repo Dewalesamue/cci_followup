@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { visitorService } from '../../services/visitorService';
 import { authService } from '../../services/authService';
 import { CheckCircle, Heart, User, Phone, Sparkles, MessageCircle, Calendar, ArrowLeft, Building2 } from 'lucide-react';
@@ -12,6 +12,24 @@ interface VisitorRegistrationProps {
 export default function VisitorRegistration({ onBackToPortal, mapName: propMapName, defaultChurchId = 'futamap' }: VisitorRegistrationProps) {
   // Available multi-tenant churches
   const [registeredChurches, setRegisteredChurches] = useState(() => authService.getChurchesList());
+
+  useEffect(() => {
+    let active = true;
+    const fetchLatest = async () => {
+      try {
+        await authService.syncChurches();
+        if (active) {
+          setRegisteredChurches(authService.getChurchesList());
+        }
+      } catch (err) {
+        console.error('Error syncing churches on mount:', err);
+      }
+    };
+    fetchLatest();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Form State
   const [formData, setFormData] = useState({
