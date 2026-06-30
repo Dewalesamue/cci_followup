@@ -3,8 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import * as dotenv from 'dotenv';
-import { Query } from 'firebase-admin/firestore';
-import { db as firebaseDb, seedFirestoreIfNeeded, snapToData } from './src/services/firebaseService.ts';
+import { dbService } from './src/services/dbService.ts';
 
 // Load environment variables
 dotenv.config();
@@ -19,16 +18,15 @@ async function startServer() {
   // Middleware to parse JSON
   app.use(express.json());
 
-  // Handle Firebase Firestore Seeding & Clean Demo Data on boot
-  await seedFirestoreIfNeeded();
+  // Handle Database Seeding & Clean Demo Data on boot
+  await dbService.seedIfNeeded();
 
-  // --- API Endpoints backed by Firebase Firestore ---
+  // --- API Endpoints backed by Supabase / Local JSON ---
 
   // 1. Churches
   app.get('/api/churches', async (req, res) => {
     try {
-      const snap = await firebaseDb.collection('churches').get();
-      const list = snapToData<any>(snap);
+      const list = await dbService.getCollection('churches');
       res.json(list.map(c => ({ id: c.id, name: c.name, mapName: c.mapName })));
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -37,12 +35,9 @@ async function startServer() {
 
   app.get('/api/churches/:id', async (req, res) => {
     try {
-      const doc = await firebaseDb.collection('churches').doc(req.params.id).get();
-      if (!doc.exists) return res.status(404).json({ error: 'Church not found' });
-      const data = doc.data();
-      if (data) {
-        delete data.passwordHash;
-      }
+      const data = await dbService.docGet('churches', req.params.id);
+      if (!data) return res.status(404).json({ error: 'Church not found' });
+      delete data.passwordHash;
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -53,15 +48,15 @@ async function startServer() {
     try {
       const { id, name, mapName, logoName, passwordHash } = req.body;
       
-      const snap = await firebaseDb.collection('churches').where('name', '==', name).get();
-      if (!snap.empty) {
+      const snap = await dbService.where('churches', 'name', '==', name);
+      if (snap.length > 0) {
         return res.status(400).json({ error: 'A church with this name is already registered.' });
       }
 
-      await firebaseDb.collection('churches').doc(id).set({ id, name, mapName, logoName, passwordHash });
+      await dbService.docSet('churches', id, { id, name, mapName, logoName, passwordHash });
       
       // Seed default AppSettings for newly registered church
-      await firebaseDb.collection('appSettings').doc(id).set({
+      await dbService.docSet('appSettings', id, {
         id,
         mapName,
         churchName: name,
@@ -79,8 +74,7 @@ async function startServer() {
   app.post('/api/auth/login', async (req, res) => {
     try {
       const { churchName, passwordHash } = req.body;
-      const snap = await firebaseDb.collection('churches').get();
-      const list = snapToData<any>(snap);
+      const list = await dbService.getCollection('churches');
       
       const found = list.find(c => c.name.toLowerCase().trim() === churchName.toLowerCase().trim());
       if (!found) {
@@ -117,8 +111,7 @@ async function startServer() {
   app.post('/api/auth/member-login', async (req, res) => {
     try {
       const { emailOrPhone, passwordHash, rawPassword } = req.body;
-      const snap = await firebaseDb.collection('members').get();
-      const allMembers = snapToData<any>(snap);
+      const allMembers = await dbService.getCollection('members');
       const cleanInput = emailOrPhone.toLowerCase().trim().replace(/[\s\-\+\(\)]/g, '');
 
       const matched = allMembers.find(m => {
@@ -157,7 +150,7 @@ async function startServer() {
         }
 
         // Save passwordHash on first login
-        await firebaseDb.collection('members').doc(matched.id).update({ passwordHash });
+        await dbService.docUpdate('members', matched.id, { passwordHash });
       }
 
       res.json({
@@ -180,8 +173,7 @@ async function startServer() {
         return res.status(400).json({ error: 'Missing required credentials.' });
       }
 
-      const snap = await firebaseDb.collection('members').get();
-      const allMembers = snapToData<any>(snap);
+      const allMembers = await dbService.getCollection('members');
       const cleanInput = emailOrPhone.toLowerCase().trim().replace(/[\s\-\+\(\)]/g, '');
 
       const matched = allMembers.find(m => {
@@ -196,7 +188,7 @@ async function startServer() {
         return res.status(404).json({ error: 'No existing member profile is linked to this phone number or email.' });
       }
 
-      await firebaseDb.collection('members').doc(matched.id).update({ passwordHash });
+      await dbService.docUpdate('members', matched.id, { passwordHash });
       res.json({ success: true, message: 'Password updated successfully.' });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -210,13 +202,12 @@ async function startServer() {
       if (!churchId || typeof churchId !== 'string') {
         return res.status(400).json({ error: 'churchId query parameter is required for multi-tenant isolation.' });
       }
-      let query: Query = firebaseDb.collection('members').where('churchId', '==', churchId);
-      const snap = await query.get();
-      const list = snapToData<any>(snap).map(m => {
+      const list = await dbService.where('members', 'churchId', '==', churchId);
+      const cleaned = list.map(m => {
         const { passwordHash, ...rest } = m;
         return rest;
       });
-      res.json(list);
+      res.json(cleaned);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -224,12 +215,9 @@ async function startServer() {
 
   app.get('/api/members/:id', async (req, res) => {
     try {
-      const doc = await firebaseDb.collection('members').doc(req.params.id).get();
-      if (!doc.exists) return res.status(404).json({ error: 'Member not found' });
-      const data = doc.data();
-      if (data) {
-        delete data.passwordHash;
-      }
+      const data = await dbService.docGet('members', req.params.id);
+      if (!data) return res.status(404).json({ error: 'Member not found' });
+      delete data.passwordHash;
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -239,7 +227,7 @@ async function startServer() {
   app.post('/api/members', async (req, res) => {
     try {
       const memberData = req.body;
-      await firebaseDb.collection('members').doc(memberData.id).set(memberData);
+      await dbService.docSet('members', memberData.id, memberData);
       res.status(201).json(memberData);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -248,9 +236,8 @@ async function startServer() {
 
   app.put('/api/members/:id', async (req, res) => {
     try {
-      await firebaseDb.collection('members').doc(req.params.id).update(req.body);
-      const doc = await firebaseDb.collection('members').doc(req.params.id).get();
-      res.json(doc.data());
+      const updated = await dbService.docUpdate('members', req.params.id, req.body);
+      res.json(updated);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -270,8 +257,7 @@ async function startServer() {
       const todayDay = String(today.getDate()).padStart(2, '0');
       const todayMonthDay = `${todayMonth}-${todayDay}`; // e.g. "06-29"
 
-      const membersSnap = await firebaseDb.collection('members').where('churchId', '==', churchId).get();
-      const allMembers = snapToData<any>(membersSnap);
+      const allMembers = await dbService.where('members', 'churchId', '==', churchId);
 
       const celebratedMembers = allMembers.filter(m => {
         if (!m.birthday) return false;
@@ -289,9 +275,9 @@ async function startServer() {
 
       for (const m of celebratedMembers) {
         const activityId = `bday_${m.id}_${todayStr}`;
-        const existingDoc = await firebaseDb.collection('recentActivities').doc(activityId).get();
+        const existingDoc = await dbService.docGet('recentActivities', activityId);
 
-        if (!existingDoc.exists) {
+        if (!existingDoc) {
           // Send automatic birthday greeting (we log it as an automated care activity)
           const activity = {
             id: activityId,
@@ -302,7 +288,7 @@ async function startServer() {
             memberName: m.fullName
           };
 
-          await firebaseDb.collection('recentActivities').doc(activityId).set(activity);
+          await dbService.docSet('recentActivities', activityId, activity);
           triggered.push({ memberId: m.id, fullName: m.fullName, email: m.email, success: true });
         } else {
           triggered.push({ memberId: m.id, fullName: m.fullName, email: m.email, success: false, reason: 'Already sent today' });
@@ -322,9 +308,8 @@ async function startServer() {
       if (!churchId || typeof churchId !== 'string') {
         return res.status(400).json({ error: 'churchId query parameter is required for multi-tenant isolation.' });
       }
-      let query: Query = firebaseDb.collection('visitors').where('churchId', '==', churchId);
-      const snap = await query.get();
-      res.json(snapToData<any>(snap));
+      const list = await dbService.where('visitors', 'churchId', '==', churchId);
+      res.json(list);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -333,7 +318,7 @@ async function startServer() {
   app.post('/api/visitors', async (req, res) => {
     try {
       const visitorData = req.body;
-      await firebaseDb.collection('visitors').doc(visitorData.id).set(visitorData);
+      await dbService.docSet('visitors', visitorData.id, visitorData);
       res.status(201).json(visitorData);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -342,9 +327,8 @@ async function startServer() {
 
   app.put('/api/visitors/:id', async (req, res) => {
     try {
-      await firebaseDb.collection('visitors').doc(req.params.id).update(req.body);
-      const doc = await firebaseDb.collection('visitors').doc(req.params.id).get();
-      res.json(doc.data());
+      const updated = await dbService.docUpdate('visitors', req.params.id, req.body);
+      res.json(updated);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -357,9 +341,8 @@ async function startServer() {
       if (!churchId || typeof churchId !== 'string') {
         return res.status(400).json({ error: 'churchId query parameter is required for multi-tenant isolation.' });
       }
-      let query: Query = firebaseDb.collection('attendance').where('churchId', '==', churchId);
-      const snap = await query.get();
-      res.json(snapToData<any>(snap));
+      const list = await dbService.where('attendance', 'churchId', '==', churchId);
+      res.json(list);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -369,17 +352,14 @@ async function startServer() {
     try {
       const attData = req.body;
       // Check if already registered
-      const dups = await firebaseDb.collection('attendance')
-        .where('memberId', '==', attData.memberId)
-        .where('date', '==', attData.date)
-        .where('serviceType', '==', attData.serviceType)
-        .get();
+      const list = await dbService.where('attendance', 'memberId', '==', attData.memberId);
+      const dup = list.find(a => a.date === attData.date && a.serviceType === attData.serviceType);
         
-      if (!dups.empty) {
+      if (dup) {
         return res.status(409).json({ error: 'Attendance already registered for this member.' });
       }
 
-      await firebaseDb.collection('attendance').doc(attData.id).set(attData);
+      await dbService.docSet('attendance', attData.id, attData);
       res.status(201).json(attData);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -388,7 +368,7 @@ async function startServer() {
 
   app.delete('/api/attendance/:id', async (req, res) => {
     try {
-      await firebaseDb.collection('attendance').doc(req.params.id).delete();
+      await dbService.docDelete('attendance', req.params.id);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -402,9 +382,8 @@ async function startServer() {
       if (!churchId || typeof churchId !== 'string') {
         return res.status(400).json({ error: 'churchId query parameter is required for multi-tenant isolation.' });
       }
-      let query: Query = firebaseDb.collection('prayerRequests').where('churchId', '==', churchId);
-      const snap = await query.get();
-      res.json(snapToData<any>(snap));
+      const list = await dbService.where('prayerRequests', 'churchId', '==', churchId);
+      res.json(list);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -413,7 +392,7 @@ async function startServer() {
   app.post('/api/prayer-requests', async (req, res) => {
     try {
       const prayerData = req.body;
-      await firebaseDb.collection('prayerRequests').doc(prayerData.id).set(prayerData);
+      await dbService.docSet('prayerRequests', prayerData.id, prayerData);
       res.status(201).json(prayerData);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -422,9 +401,8 @@ async function startServer() {
 
   app.put('/api/prayer-requests/:id', async (req, res) => {
     try {
-      await firebaseDb.collection('prayerRequests').doc(req.params.id).update(req.body);
-      const doc = await firebaseDb.collection('prayerRequests').doc(req.params.id).get();
-      res.json(doc.data());
+      const updated = await dbService.docUpdate('prayerRequests', req.params.id, req.body);
+      res.json(updated);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -437,9 +415,8 @@ async function startServer() {
       if (!churchId || typeof churchId !== 'string') {
         return res.status(400).json({ error: 'churchId query parameter is required for multi-tenant isolation.' });
       }
-      let query: Query = firebaseDb.collection('followUps').where('churchId', '==', churchId);
-      const snap = await query.get();
-      res.json(snapToData<any>(snap));
+      const list = await dbService.where('followUps', 'churchId', '==', churchId);
+      res.json(list);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -448,7 +425,7 @@ async function startServer() {
   app.post('/api/follow-ups', async (req, res) => {
     try {
       const fuData = req.body;
-      await firebaseDb.collection('followUps').doc(fuData.id).set(fuData);
+      await dbService.docSet('followUps', fuData.id, fuData);
       res.status(201).json(fuData);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -457,9 +434,8 @@ async function startServer() {
 
   app.put('/api/follow-ups/:id', async (req, res) => {
     try {
-      await firebaseDb.collection('followUps').doc(req.params.id).update(req.body);
-      const doc = await firebaseDb.collection('followUps').doc(req.params.id).get();
-      res.json(doc.data());
+      const updated = await dbService.docUpdate('followUps', req.params.id, req.body);
+      res.json(updated);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -472,9 +448,8 @@ async function startServer() {
       if (!churchId || typeof churchId !== 'string') {
         return res.status(400).json({ error: 'churchId query parameter is required for multi-tenant isolation.' });
       }
-      let query: Query = firebaseDb.collection('recentActivities').where('churchId', '==', churchId);
-      const snap = await query.get();
-      res.json(snapToData<any>(snap));
+      const list = await dbService.where('recentActivities', 'churchId', '==', churchId);
+      res.json(list);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -483,7 +458,7 @@ async function startServer() {
   app.post('/api/activities', async (req, res) => {
     try {
       const activityData = req.body;
-      await firebaseDb.collection('recentActivities').doc(activityData.id).set(activityData);
+      await dbService.docSet('recentActivities', activityData.id, activityData);
       res.status(201).json(activityData);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -497,9 +472,8 @@ async function startServer() {
       if (!churchId || typeof churchId !== 'string') {
         return res.status(400).json({ error: 'churchId query parameter is required for multi-tenant isolation.' });
       }
-      let query: Query = firebaseDb.collection('fellowshipConnections').where('churchId', '==', churchId);
-      const snap = await query.get();
-      res.json(snapToData<any>(snap));
+      const list = await dbService.where('fellowshipConnections', 'churchId', '==', churchId);
+      res.json(list);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -508,7 +482,7 @@ async function startServer() {
   app.post('/api/fellowship/connections', async (req, res) => {
     try {
       const connData = req.body;
-      await firebaseDb.collection('fellowshipConnections').doc(connData.id).set(connData);
+      await dbService.docSet('fellowshipConnections', connData.id, connData);
       res.status(201).json(connData);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -517,9 +491,8 @@ async function startServer() {
 
   app.put('/api/fellowship/connections/:id', async (req, res) => {
     try {
-      await firebaseDb.collection('fellowshipConnections').doc(req.params.id).update(req.body);
-      const doc = await firebaseDb.collection('fellowshipConnections').doc(req.params.id).get();
-      res.json(doc.data());
+      const updated = await dbService.docUpdate('fellowshipConnections', req.params.id, req.body);
+      res.json(updated);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -527,7 +500,7 @@ async function startServer() {
 
   app.delete('/api/fellowship/connections/:id', async (req, res) => {
     try {
-      await firebaseDb.collection('fellowshipConnections').doc(req.params.id).delete();
+      await dbService.docDelete('fellowshipConnections', req.params.id);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -541,9 +514,8 @@ async function startServer() {
       if (!churchId || typeof churchId !== 'string') {
         return res.status(400).json({ error: 'churchId query parameter is required for multi-tenant isolation.' });
       }
-      let query: Query = firebaseDb.collection('fellowshipNotes').where('churchId', '==', churchId);
-      const snap = await query.get();
-      res.json(snapToData<any>(snap));
+      const list = await dbService.where('fellowshipNotes', 'churchId', '==', churchId);
+      res.json(list);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -552,7 +524,7 @@ async function startServer() {
   app.post('/api/fellowship/notes', async (req, res) => {
     try {
       const noteData = req.body;
-      await firebaseDb.collection('fellowshipNotes').doc(noteData.id).set(noteData);
+      await dbService.docSet('fellowshipNotes', noteData.id, noteData);
       res.status(201).json(noteData);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -562,8 +534,8 @@ async function startServer() {
   // 11. Settings (AppSettings)
   app.get('/api/settings/:churchId', async (req, res) => {
     try {
-      const doc = await firebaseDb.collection('appSettings').doc(req.params.churchId).get();
-      if (!doc.exists) {
+      const data = await dbService.docGet('appSettings', req.params.churchId);
+      if (!data) {
         return res.json({
           mapName: 'MAP',
           churchName: 'Church Assembly',
@@ -571,7 +543,7 @@ async function startServer() {
           logoName: 'Admin'
         });
       }
-      res.json(doc.data());
+      res.json(data);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -580,14 +552,17 @@ async function startServer() {
   app.post('/api/settings/:churchId', async (req, res) => {
     try {
       const { mapName, churchName, themeColor, logoName } = req.body;
-      await firebaseDb.collection('appSettings').doc(req.params.churchId).set({
+      const existing = await dbService.docGet('appSettings', req.params.churchId) || {};
+      const updated = {
+        ...existing,
         id: req.params.churchId,
         mapName,
         churchName,
         themeColor,
         logoName
-      }, { merge: true });
-      res.json({ mapName, churchName, themeColor, logoName });
+      };
+      await dbService.docSet('appSettings', req.params.churchId, updated);
+      res.json(updated);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -610,7 +585,7 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server successfully started with Firebase backend. Running fullstack port: http://localhost:${PORT}`);
+    console.log(`Server successfully started with Supabase backend. Running fullstack port: http://localhost:${PORT}`);
   });
 }
 
