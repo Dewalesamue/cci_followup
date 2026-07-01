@@ -62,6 +62,9 @@ export const settingsService = {
     const activeChurchId = chosenChurchId || authService.getCurrentSession()?.churchId || 'futamap';
     const key = `${STORAGE_KEY_PREFIX}${activeChurchId}`;
     
+    // Get previous settings to compare
+    const previous = this.getSettings(activeChurchId);
+    
     // Save locally
     localStorage.setItem(key, JSON.stringify(settings));
 
@@ -74,6 +77,34 @@ export const settingsService = {
       });
     } catch (err) {
       console.error('Failed to post settings:', err);
+    }
+
+    // Log changes in audit system
+    try {
+      const { activityService } = await import('./activityService');
+      const changedFields: string[] = [];
+      if (previous.churchName !== settings.churchName) {
+        await activityService.logSettingsChange(activeChurchId, 'Church Name', previous.churchName, settings.churchName);
+        changedFields.push('Church Name');
+      }
+      if (previous.mapName !== settings.mapName) {
+        await activityService.logSettingsChange(activeChurchId, 'MAP Group Name', previous.mapName, settings.mapName);
+        changedFields.push('MAP Group Name');
+      }
+      if (previous.themeColor !== settings.themeColor) {
+        await activityService.logSettingsChange(activeChurchId, 'Theme Color', previous.themeColor, settings.themeColor);
+        changedFields.push('Theme Color');
+      }
+      if (previous.logoName !== settings.logoName) {
+        await activityService.logSettingsChange(activeChurchId, 'Logo/Admin Title', previous.logoName, settings.logoName);
+        changedFields.push('Logo/Admin Title');
+      }
+      
+      if (changedFields.length === 0) {
+        await activityService.logAudit('settings', 'Settings saved.', undefined, activeChurchId);
+      }
+    } catch (e) {
+      console.error('Failed to log settings changes to audit log:', e);
     }
 
     return settings;

@@ -62,6 +62,7 @@ class DatabaseService {
   private supabase: SupabaseClient | null = null;
   private useLocalJson = true;
   private loggedMissingTables = new Set<string>();
+  private fallbackCollections = new Set<string>();
 
   constructor() {
     const supabaseUrl = process.env.SUPABASE_URL;
@@ -122,7 +123,7 @@ class DatabaseService {
   async getCollection(collectionName: string): Promise<any[]> {
     const tableName = tableMap[collectionName] || collectionName;
 
-    if (this.useLocalJson) {
+    if (this.useLocalJson || this.fallbackCollections.has(collectionName)) {
       const dbData = this.readLocalJson();
       return dbData[collectionName] || [];
     }
@@ -136,6 +137,7 @@ class DatabaseService {
       return (data || []).map(row => mapShallowKeysToCamel(row));
     } catch (err: any) {
       this.logFallback(tableName, 'getCollection', err);
+      this.fallbackCollections.add(collectionName);
       const dbData = this.readLocalJson();
       return dbData[collectionName] || [];
     }
@@ -145,7 +147,7 @@ class DatabaseService {
   async where(collectionName: string, field: string, operator: '==' | '!=', value: any): Promise<any[]> {
     const tableName = tableMap[collectionName] || collectionName;
 
-    if (this.useLocalJson) {
+    if (this.useLocalJson || this.fallbackCollections.has(collectionName)) {
       const dbData = this.readLocalJson();
       const list = dbData[collectionName] || [];
       return list.filter((item: any) => {
@@ -171,6 +173,7 @@ class DatabaseService {
       return (data || []).map(row => mapShallowKeysToCamel(row));
     } catch (err: any) {
       this.logFallback(tableName, `where filter (${field} ${operator} ${value})`, err);
+      this.fallbackCollections.add(collectionName);
       const dbData = this.readLocalJson();
       const list = dbData[collectionName] || [];
       return list.filter((item: any) => {
@@ -187,7 +190,7 @@ class DatabaseService {
   async docGet(collectionName: string, id: string): Promise<any | null> {
     const tableName = tableMap[collectionName] || collectionName;
 
-    if (this.useLocalJson) {
+    if (this.useLocalJson || this.fallbackCollections.has(collectionName)) {
       const dbData = this.readLocalJson();
       const list = dbData[collectionName] || [];
       const found = list.find((item: any) => item.id === id);
@@ -205,6 +208,7 @@ class DatabaseService {
       return data ? mapShallowKeysToCamel(data) : null;
     } catch (err: any) {
       this.logFallback(tableName, 'docGet', err);
+      this.fallbackCollections.add(collectionName);
       const dbData = this.readLocalJson();
       const list = dbData[collectionName] || [];
       const found = list.find((item: any) => item.id === id);
@@ -229,7 +233,7 @@ class DatabaseService {
     dbData[collectionName] = list;
     this.writeLocalJson(dbData);
 
-    if (this.useLocalJson) {
+    if (this.useLocalJson || this.fallbackCollections.has(collectionName)) {
       return;
     }
 
@@ -242,6 +246,7 @@ class DatabaseService {
       if (error) throw error;
     } catch (err: any) {
       this.logFallback(tableName, 'docSet', err);
+      this.fallbackCollections.add(collectionName);
     }
   }
 
@@ -265,7 +270,7 @@ class DatabaseService {
     dbData[collectionName] = list;
     this.writeLocalJson(dbData);
 
-    if (this.useLocalJson) {
+    if (this.useLocalJson || this.fallbackCollections.has(collectionName)) {
       return updatedRecord;
     }
 
@@ -282,6 +287,7 @@ class DatabaseService {
       return data ? mapShallowKeysToCamel(data) : updatedRecord;
     } catch (err: any) {
       this.logFallback(tableName, 'docUpdate', err);
+      this.fallbackCollections.add(collectionName);
       return updatedRecord;
     }
   }
@@ -296,7 +302,7 @@ class DatabaseService {
     dbData[collectionName] = list.filter((item: any) => item.id !== id);
     this.writeLocalJson(dbData);
 
-    if (this.useLocalJson) {
+    if (this.useLocalJson || this.fallbackCollections.has(collectionName)) {
       return;
     }
 
@@ -309,6 +315,7 @@ class DatabaseService {
       if (error) throw error;
     } catch (err: any) {
       this.logFallback(tableName, 'docDelete', err);
+      this.fallbackCollections.add(collectionName);
     }
   }
 
@@ -356,35 +363,36 @@ class DatabaseService {
           });
         }
         console.log('✓ Initial SaaS seeding completed successfully!');
-      }
 
-      // Clear the transactional collections to maintain a pristine starting point, as done originally
-      const transactionalCollections = [
-        'members',
-        'visitors',
-        'attendance',
-        'prayerRequests',
-        'followUps',
-        'fellowshipConnections',
-        'fellowshipNotes',
-        'recentActivities'
-      ];
+        // Clear the transactional collections to maintain a pristine starting point, as done originally
+        const transactionalCollections = [
+          'members',
+          'visitors',
+          'attendance',
+          'prayerRequests',
+          'followUps',
+          'fellowshipConnections',
+          'fellowshipNotes',
+          'recentActivities'
+        ];
 
-      for (const coll of transactionalCollections) {
-        if (this.useLocalJson) {
-          const dbData = this.readLocalJson();
-          dbData[coll] = [];
-          this.writeLocalJson(dbData);
-        } else {
-          try {
-            const tableName = tableMap[coll] || coll;
-            await this.supabase!.from(tableName).delete().neq('id', 'keep_all_rows_clean');
-          } catch (err: any) {
-            // Quiet log during clearing
+        for (const coll of transactionalCollections) {
+          if (this.useLocalJson || this.fallbackCollections.has(coll)) {
+            const dbData = this.readLocalJson();
+            dbData[coll] = [];
+            this.writeLocalJson(dbData);
+          } else {
+            try {
+              const tableName = tableMap[coll] || coll;
+              await this.supabase!.from(tableName).delete().neq('id', 'keep_all_rows_clean');
+            } catch (err: any) {
+              // Quiet log during clearing
+              this.fallbackCollections.add(coll);
+            }
           }
         }
+        console.log('✓ Care database environment cleared & activated!');
       }
-      console.log('✓ Care database environment cleared & activated!');
     } catch (err) {
       console.error('Error during initial database seed:', err);
     }

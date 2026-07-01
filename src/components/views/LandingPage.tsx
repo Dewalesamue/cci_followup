@@ -71,27 +71,27 @@ export default function LandingPage({ onNavigate, churchName, mapName, activeChu
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-between font-sans">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-between font-sans text-slate-800 dark:text-slate-100 transition-colors">
       {/* Top Banner Navigation */}
-      <nav className="bg-white border-b border-gray-100 py-4 px-4 sm:px-12 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 shadow-xs">
+      <nav className="bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800 py-4 px-4 sm:px-12 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 shadow-xs">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
           <div className="flex items-center justify-between">
-            <span className="font-bold text-gray-950 tracking-tight text-lg font-sans">AssemblyPortal</span>
+            <span className="font-bold text-gray-950 dark:text-white tracking-tight text-lg font-sans">AssemblyPortal</span>
           </div>
           
           {/* Tenant Switcher Dropdown */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 bg-slate-50 p-2 sm:p-0 sm:bg-transparent rounded-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 bg-slate-50 dark:bg-slate-850 p-2 sm:p-0 sm:bg-transparent rounded-xl">
             <div className="flex items-center gap-1.5">
-              <span className="text-gray-300 hidden sm:inline">|</span>
-              <span className="text-[10px] sm:text-xs text-gray-400 font-bold uppercase tracking-wider">Viewing Assembly:</span>
+              <span className="text-gray-300 dark:text-slate-750 hidden sm:inline">|</span>
+              <span className="text-[10px] sm:text-xs text-gray-400 dark:text-slate-400 font-bold uppercase tracking-wider">Viewing Assembly:</span>
             </div>
             <select
               value={activeChurchId}
               onChange={(e) => onChurchChange(e.target.value)}
-              className="text-xs font-semibold text-slate-700 bg-white sm:bg-slate-100 border border-slate-200 rounded-lg px-2.5 py-2 focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500 cursor-pointer w-full sm:w-auto shrink-0 shadow-2xs"
+              className="text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 sm:bg-slate-100 dark:sm:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-2 focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500 cursor-pointer w-full sm:w-auto shrink-0 shadow-2xs"
             >
               {registeredChurches.map((ch) => (
-                <option key={ch.id} value={ch.id}>
+                <option key={ch.id} value={ch.id} className="bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">
                   {ch.name}
                 </option>
               ))}

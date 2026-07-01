@@ -100,10 +100,11 @@ export interface MemberSession {
 export interface RecentActivity {
   id: string;
   churchId?: string; // Tenant separation
-  type: 'attendance' | 'prayer' | 'registration' | 'followup';
+  type: 'attendance' | 'prayer' | 'registration' | 'followup' | 'login' | 'settings' | 'audit_log';
   description: string;
   timestamp: string; // YYYY-MM-DD
   memberName?: string;
+  details?: string; // Additional details for auditing/debugging
 }
 
 export interface BirthdayReminder {

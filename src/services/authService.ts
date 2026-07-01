@@ -1,6 +1,7 @@
 // Client auth service powered by PostgreSQL server-side routes.
 
 import { Church, ChurchSession } from '../types';
+import { activityService } from './activityService.ts';
 
 // Deterministic hashing function representing bcrypt (same as server-side)
 export function hashPassword(password: string): string {
@@ -33,16 +34,43 @@ export async function syncChurches(): Promise<void> {
 // Proactive trigger to sync on load
 syncChurches();
 
+const DEFAULT_CHURCHES: Church[] = [
+  {
+    id: 'futamap',
+    name: 'Celebration Church International',
+    passwordHash: 'mock_bcrypt_pbkdf2_2ec9aec',
+    mapName: 'Celebration Group',
+    logoName: 'CCI Admin'
+  },
+  {
+    id: 'rccg',
+    name: 'RCCG',
+    passwordHash: 'mock_bcrypt_pbkdf2_660194d7',
+    mapName: 'RCCG Area',
+    logoName: 'RCCG Admin'
+  },
+  {
+    id: 'winners',
+    name: 'Winners Chapel',
+    passwordHash: 'mock_bcrypt_pbkdf2_68615316',
+    mapName: 'Winners Cell',
+    logoName: 'Winners Admin'
+  }
+];
+
 function getChurches(): Church[] {
   const stored = localStorage.getItem(TENANTS_STORAGE_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
     } catch {
       // Fallback
     }
   }
-  return [];
+  return DEFAULT_CHURCHES;
 }
 
 export const authService = {
@@ -70,39 +98,94 @@ export const authService = {
 
     if (!res.ok) {
       const errData = await res.json();
-      throw new Error(errData.error || 'A church with this name is already registered.');
+      const errMsg = errData.error || 'A church with this name is already registered.';
+      throw new Error(errMsg);
     }
 
     // Refresh memory cache
     await syncChurches();
+
+    // Log the registration event in the audit system
+    try {
+      await activityService.logRegistration(name, mapName, id);
+    } catch (e) {
+      console.error('Audit logging registration failed', e);
+    }
 
     return { id, name };
   },
 
   async login(churchName: string, password: string, rememberMe = false): Promise<ChurchSession> {
     const passwordHash = hashPassword(password);
+    let attempts = 0;
+    const maxAttempts = 5;
+    let delayMs = 200;
 
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ churchName, passwordHash })
-    });
+    while (true) {
+      attempts++;
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ churchName, passwordHash })
+        });
 
-    if (!res.ok) {
-      const errData = await res.json();
-      throw new Error(errData.error || 'Login failed.');
+        if (res.ok) {
+          const session: ChurchSession = await res.json();
+
+          const sessionStr = JSON.stringify(session);
+          if (rememberMe) {
+            localStorage.setItem(SESSION_STORAGE_KEY, sessionStr);
+          } else {
+            sessionStorage.setItem(SESSION_STORAGE_KEY, sessionStr);
+          }
+
+          // Log successful login audit
+          try {
+            await activityService.logLogin('Admin', churchName, session.churchId, true);
+          } catch (e) {
+            console.error('Audit logging admin login success failed', e);
+          }
+
+          return session;
+        }
+
+        const errData = await res.json();
+        const errMsg = errData.error || 'Login failed.';
+
+        // Backoff retry if church not indexed yet or is temporarily not found, but we know registration was attempted
+        const isNotRegisteredError = errMsg.toLowerCase().includes('church not registered') || errMsg.toLowerCase().includes('not found');
+        if (isNotRegisteredError && attempts < maxAttempts) {
+          console.warn(`Church lookup failed: "${errMsg}". Retrying in ${delayMs}ms (attempt ${attempts}/${maxAttempts}) with exponential backoff...`);
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+          delayMs *= 2;
+          continue;
+        }
+
+        // Log failed login audit
+        try {
+          await activityService.logLogin('Admin', churchName, 'futamap', false, errMsg);
+        } catch (e) {
+          console.error('Audit logging admin login failure failed', e);
+        }
+
+        throw new Error(errMsg);
+      } catch (err: any) {
+        if (attempts >= maxAttempts) {
+          // Log failed login audit on exception
+          try {
+            await activityService.logLogin('Admin', churchName, 'futamap', false, err.message);
+          } catch (e) {
+            console.error('Audit logging admin login error failed', e);
+          }
+          throw err;
+        }
+        // Retry on connection errors
+        console.warn(`Connection error during login: ${err.message || err}. Retrying in ${delayMs}ms (attempt ${attempts}/${maxAttempts})...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        delayMs *= 2;
+      }
     }
-
-    const session: ChurchSession = await res.json();
-
-    const sessionStr = JSON.stringify(session);
-    if (rememberMe) {
-      localStorage.setItem(SESSION_STORAGE_KEY, sessionStr);
-    } else {
-      sessionStorage.setItem(SESSION_STORAGE_KEY, sessionStr);
-    }
-
-    return session;
   },
 
   getCurrentSession(): ChurchSession | null {
@@ -139,27 +222,54 @@ export const authService = {
   async memberLogin(emailOrPhone: string, password: string, rememberMe = false): Promise<any> {
     const passwordHash = hashPassword(password);
 
-    const res = await fetch('/api/auth/member-login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emailOrPhone, passwordHash, rawPassword: password })
-    });
+    try {
+      const res = await fetch('/api/auth/member-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emailOrPhone, passwordHash, rawPassword: password })
+      });
 
-    if (!res.ok) {
-      const errData = await res.json();
-      throw new Error(errData.error || 'Authentication failed.');
+      if (!res.ok) {
+        const errData = await res.json();
+        const errMsg = errData.error || 'Authentication failed.';
+        
+        // Log member login failure audit
+        try {
+          await activityService.logLogin('Member', emailOrPhone, 'futamap', false, errMsg);
+        } catch (e) {
+          console.error('Audit logging member login failure failed', e);
+        }
+        
+        throw new Error(errMsg);
+      }
+
+      const memberSession = await res.json();
+
+      const sessionStr = JSON.stringify(memberSession);
+      if (rememberMe) {
+        localStorage.setItem(MEMBER_SESSION_STORAGE_KEY, sessionStr);
+      } else {
+        sessionStorage.setItem(MEMBER_SESSION_STORAGE_KEY, sessionStr);
+      }
+
+      // Log member login success audit
+      try {
+        await activityService.logLogin('Member', memberSession.fullName || emailOrPhone, memberSession.churchId || 'futamap', true);
+      } catch (e) {
+        console.error('Audit logging member login success failed', e);
+      }
+
+      return memberSession;
+    } catch (err: any) {
+      if (!err.message || !err.message.includes('Authentication failed.')) {
+        try {
+          await activityService.logLogin('Member', emailOrPhone, 'futamap', false, err.message);
+        } catch (e) {
+          console.error('Audit logging member login exception failed', e);
+        }
+      }
+      throw err;
     }
-
-    const memberSession = await res.json();
-
-    const sessionStr = JSON.stringify(memberSession);
-    if (rememberMe) {
-      localStorage.setItem(MEMBER_SESSION_STORAGE_KEY, sessionStr);
-    } else {
-      sessionStorage.setItem(MEMBER_SESSION_STORAGE_KEY, sessionStr);
-    }
-
-    return memberSession;
   },
 
   getCurrentMemberSession(): any | null {

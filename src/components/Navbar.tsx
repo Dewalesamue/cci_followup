@@ -61,16 +61,21 @@ export default function Navbar({
       <div className="flex items-center space-x-3">
         <button
           onClick={onMobileMenuToggle}
-          className="p-2 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors lg:hidden"
+          className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors lg:hidden"
         >
           <Menu className="w-5 h-5" />
         </button>
-        <div>
-          <span className="hidden sm:inline font-semibold text-gray-900 text-sm tracking-tight font-sans">
-            {churchName}
-          </span>
-          <span className="inline sm:hidden font-semibold text-gray-900 text-xs tracking-tight bg-blue-50 px-2 py-0.5 rounded-md">
-            {currentUserRole === 'Member' ? 'Gateway' : 'Leader Board'}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+          {/* Active Assembly Tag */}
+          <div className="flex items-center space-x-1 px-2.5 py-1 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 rounded-lg border border-blue-100/55 dark:border-blue-900/35">
+            <span className="text-[9px] font-bold uppercase tracking-wider font-mono opacity-80">Assembly:</span>
+            <span className="text-xs font-bold font-sans tracking-tight line-clamp-1 max-w-[120px] xs:max-w-[160px] sm:max-w-none">
+              {churchName}
+            </span>
+          </div>
+          {/* Role Badge */}
+          <span className="hidden sm:inline-block text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-md uppercase tracking-wider font-mono">
+            {currentUserRole}
           </span>
         </div>
       </div>

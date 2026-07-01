@@ -95,15 +95,13 @@ export default function AdminLogin({ onLoginSuccess, onBackToPortal, initialIsRe
       // Auto-login immediately
       setTimeout(async () => {
         try {
-          const session = await authService.login(regChurchName, regPassword, rememberMe);
+          const session = await authService.login(regChurchName, regPassword, true);
           setSuccess(`Welcome to your new portal! Logging into ${session.churchName}...`);
           setTimeout(() => {
             onLoginSuccess(session);
           }, 1000);
         } catch (loginErr: any) {
-          setError('Church registered, but failed auto-login. Please sign in manually.');
-          setIsRegistering(false);
-          setChurchName(regChurchName);
+          setError(`Automatic login failed: ${loginErr.message || 'Unknown authentication error'}`);
           setIsLoading(false);
         }
       }, 1200);
@@ -189,10 +187,27 @@ export default function AdminLogin({ onLoginSuccess, onBackToPortal, initialIsRe
           <motion.div
             initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}
-            className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center space-x-2"
+            className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex flex-col space-y-1.5"
           >
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span className="font-semibold">{error}</span>
+            <div className="flex items-center space-x-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span className="font-semibold">{error}</span>
+            </div>
+            {error.includes('Church not registered') && (
+              <div className="pl-6 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRegChurchName(churchName);
+                    setIsRegistering(true);
+                    setError('');
+                  }}
+                  className="text-blue-600 hover:text-blue-800 font-bold underline transition-all cursor-pointer block"
+                >
+                  Register "{churchName}" as a new organization now →
+                </button>
+              </div>
+            )}
           </motion.div>
         )}
 

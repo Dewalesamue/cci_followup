@@ -35,6 +35,7 @@ import SettingsView from './components/views/SettingsView';
 import MemberLogin from './components/views/MemberLogin';
 import MemberDashboardView from './components/views/MemberDashboardView';
 import CheckInView from './components/views/CheckInView';
+import PrayerRequestsView from './components/views/PrayerRequestsView';
 
 // Icons
 import { Moon, Sun, ArrowLeft, ShieldAlert } from 'lucide-react';
@@ -75,7 +76,9 @@ export default function App() {
     return 'Admin';
   }); // System admin access
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    return localStorage.getItem('theme_dark_mode') === 'true';
+  });
 
   // Keep track of the active public tenant/church shown on the Landing page
   const [selectedPublicChurchId, setSelectedPublicChurchId] = useState<string>(() => {
@@ -181,6 +184,7 @@ export default function App() {
     } else {
       document.documentElement.classList.remove('dark');
     }
+    localStorage.setItem('theme_dark_mode', String(darkMode));
   }, [darkMode]);
 
   // Handle member selection dynamically (e.g. search suggestions)
@@ -235,6 +239,41 @@ export default function App() {
     setMemberSession(null);
     setCurrentUserRole('Admin');
     setCurrentView('landing');
+  };
+
+  const handleRoleChange = (role: UserRole) => {
+    setCurrentUserRole(role);
+    if (role === 'Member') {
+      const existingSession = authService.getCurrentMemberSession();
+      if (!existingSession) {
+        const firstMember = members[0];
+        const mockMemberSession = {
+          memberId: firstMember?.id || 'm_sim_user',
+          fullName: firstMember?.fullName || 'Simulated Member',
+          churchId: firstMember?.churchId || 'futamap'
+        };
+        localStorage.setItem('futamap_saas_member_session', JSON.stringify(mockMemberSession));
+        setMemberSession(mockMemberSession);
+      }
+      setCurrentView('member-dashboard');
+    } else {
+      const existingAdminSession = authService.getCurrentSession();
+      if (!existingAdminSession) {
+        // Seed mock admin/leader session so switcher works instantly without credential barriers
+        const mockAdminSession = {
+          churchId: 'futamap',
+          churchName: 'FUTA MAP',
+          mapName: 'FUTA MAP',
+          logoName: 'FUTA MAP Admin',
+          authenticatedAt: new Date().toISOString()
+        };
+        localStorage.setItem('futamap_saas_auth_session', JSON.stringify(mockAdminSession));
+        setSession(mockAdminSession);
+      }
+      if (currentView === 'member-dashboard' || ['landing', 'admin-login', 'member-login'].includes(currentView)) {
+        setCurrentView('dashboard');
+      }
+    }
   };
 
   // View switch render controller
@@ -399,6 +438,14 @@ export default function App() {
           />
         );
 
+      case 'prayer-requests':
+        return (
+          <PrayerRequestsView
+            prayerRequests={prayerRequests}
+            onUpdatePrayerRequests={refreshAllData}
+          />
+        );
+
       case 'birthdays':
         return (
           <BirthdayView
@@ -450,6 +497,21 @@ export default function App() {
           {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </button>
 
+        {/* Floating Role Simulator for Public / Member Portal testing */}
+        <div className="fixed bottom-5 left-5 bg-white dark:bg-slate-800 shadow-lg border border-slate-200 dark:border-slate-700 rounded-2xl p-2.5 flex items-center space-x-2.5 z-50 hover:scale-102 transition-all">
+          <ShieldAlert className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 animate-pulse" />
+          <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 font-mono">Role Sim:</span>
+          <select
+            value={currentUserRole}
+            onChange={(e) => handleRoleChange(e.target.value as UserRole)}
+            className="text-xs font-bold text-blue-600 dark:text-blue-400 py-0.5 px-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-1 focus:ring-blue-500 cursor-pointer font-sans"
+          >
+            <option value="Admin">Admin</option>
+            <option value="MAP Leader">MAP Leader</option>
+            <option value="Member">Member</option>
+          </select>
+        </div>
+
         {renderViewContent()}
       </div>
     );
@@ -474,7 +536,7 @@ export default function App() {
         <Navbar
           onMobileMenuToggle={() => setIsMobileSidebarOpen(true)}
           currentUserRole={currentUserRole}
-          onRoleChange={setCurrentUserRole}
+          onRoleChange={handleRoleChange}
           onQuickNav={handleViewChange}
           churchName={appSettings.churchName}
           prayerRequests={prayerRequests}
