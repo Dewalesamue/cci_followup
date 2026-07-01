@@ -44,6 +44,7 @@ export default function App() {
   // Authentication Multi-Tenant State
   const [session, setSession] = useState<ChurchSession | null>(() => authService.getCurrentSession());
   const [memberSession, setMemberSession] = useState<any | null>(() => authService.getCurrentMemberSession());
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Navigation state (SaaS routes)
   const [currentView, setCurrentView] = useState<string>(() => {
@@ -160,6 +161,8 @@ export default function App() {
       setPrayerRequests(prayerService.getPrayerRequests());
       setFollowUps(followUpService.getFollowUps());
       setRecentActivities(activityService.getActivities());
+    } finally {
+      setIsLoading(false);
     }
   }, [session, memberSession]);
 
@@ -481,6 +484,19 @@ export default function App() {
         return <div className="p-4 bg-white rounded-xl">Page view configuration not found.</div>;
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className={`min-h-screen flex flex-col items-center justify-center ${darkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'} transition-colors duration-300`}>
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-sm font-semibold tracking-wide text-slate-500 dark:text-slate-400 animate-pulse font-sans">
+            Loading church space...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Determine if showing public entry or credential gates
   const isPublicView = ['landing', 'register-member', 'register-visitor', 'prayer-request', 'admin-login', 'member-login', 'member-dashboard', 'check-in'].includes(currentView);

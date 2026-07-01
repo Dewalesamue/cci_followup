@@ -86,6 +86,7 @@ export interface ChurchSession {
   mapName: string;
   logoName: string;
   authenticatedAt: string;
+  token?: string;
 }
 
 export interface MemberSession {
@@ -95,6 +96,7 @@ export interface MemberSession {
   phoneNumber: string;
   email?: string;
   authenticatedAt: string;
+  token?: string;
 }
 
 export interface RecentActivity {

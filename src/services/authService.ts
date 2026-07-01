@@ -18,6 +18,47 @@ const TENANTS_STORAGE_KEY = 'futamap_saas_tenants';
 const SESSION_STORAGE_KEY = 'futamap_saas_session';
 const MEMBER_SESSION_STORAGE_KEY = 'futamap_saas_member_session';
 
+// Intercept all API calls to inject the secure Session Token automatically
+const originalFetch = window.fetch;
+try {
+  Object.defineProperty(window, 'fetch', {
+    configurable: true,
+    enumerable: true,
+    writable: true,
+    value: async function (input: any, init?: any) {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url;
+      
+      if (url.startsWith('/api/') && !url.startsWith('/api/auth/') && !url.startsWith('/api/churches')) {
+        let token = '';
+        const sessionLocal = localStorage.getItem(SESSION_STORAGE_KEY) || localStorage.getItem(MEMBER_SESSION_STORAGE_KEY);
+        if (sessionLocal) {
+          try {
+            token = JSON.parse(sessionLocal).token || '';
+          } catch {}
+        }
+        if (!token) {
+          const sessionSession = sessionStorage.getItem(SESSION_STORAGE_KEY) || sessionStorage.getItem(MEMBER_SESSION_STORAGE_KEY);
+          if (sessionSession) {
+            try {
+              token = JSON.parse(sessionSession).token || '';
+            } catch {}
+          }
+        }
+
+        if (token) {
+          init = init || {};
+          const headers = new Headers(init.headers || {});
+          headers.set('Authorization', `Bearer ${token}`);
+          init.headers = headers;
+        }
+      }
+      return originalFetch.call(window, input, init);
+    }
+  });
+} catch (e) {
+  console.error("Failed to securely override window.fetch with Object.defineProperty:", e);
+}
+
 // Synchronizes the tenant registry from our server to LocalStorage
 export async function syncChurches(): Promise<void> {
   try {

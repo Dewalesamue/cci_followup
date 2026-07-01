@@ -6,9 +6,54 @@ import * as dotenv from 'dotenv';
 import { dbService } from './src/services/dbService.ts';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import crypto from 'crypto';
 
 // Load environment variables
 dotenv.config();
+
+const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+
+// Cryptographic token helpers
+function generateToken(payload: object): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const body = Buffer.from(JSON.stringify({ ...payload, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7 })).toString('base64url'); // 7 days expiration
+  const signature = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${body}`).digest('base64url');
+  return `${header}.${body}.${signature}`;
+}
+
+function verifyToken(token: string): any | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const [header, body, signature] = parts;
+    const expectedSignature = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${body}`).digest('base64url');
+    if (signature !== expectedSignature) return null;
+    const decodedBody = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+    if (decodedBody.exp && decodedBody.exp < Math.floor(Date.now() / 1000)) {
+      return null; // Expired
+    }
+    return decodedBody;
+  } catch (err) {
+    return null;
+  }
+}
+
+// Authentication middleware to enforce multi-tenant isolation
+const authenticateSession = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Authorization header is missing or malformed.' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  const decoded = verifyToken(token);
+  if (!decoded) {
+    return res.status(401).json({ error: 'Invalid or expired session token.' });
+  }
+
+  (req as any).session = decoded;
+  next();
+};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -121,12 +166,19 @@ async function startServer() {
       if (!isMatch) {
         return res.status(401).json({ error: 'Invalid password.' });
       }
+
+      const token = generateToken({
+        churchId: found.id,
+        role: 'admin'
+      });
+
       res.json({
         churchId: found.id,
         churchName: found.name,
         mapName: found.mapName,
         logoName: found.logoName,
-        authenticatedAt: new Date().toISOString()
+        authenticatedAt: new Date().toISOString(),
+        token
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -179,13 +231,20 @@ async function startServer() {
         broadcastDbChange('members');
       }
 
+      const token = generateToken({
+        churchId: matched.churchId || 'futamap',
+        memberId: matched.id,
+        role: 'member'
+      });
+
       res.json({
         memberId: matched.id,
         fullName: matched.fullName,
         churchId: matched.churchId || 'futamap',
         phoneNumber: matched.phoneNumber,
         email: matched.email,
-        authenticatedAt: new Date().toISOString()
+        authenticatedAt: new Date().toISOString(),
+        token
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -223,12 +282,19 @@ async function startServer() {
   });
 
   // 3. Members
-  app.get('/api/members', async (req, res) => {
+  app.get('/api/members', authenticateSession, async (req, res) => {
     try {
       const { churchId } = req.query;
+      const session = (req as any).session;
+      
       if (!churchId || typeof churchId !== 'string') {
         return res.status(400).json({ error: 'churchId query parameter is required for multi-tenant isolation.' });
       }
+
+      if (session.churchId !== churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
       const list = await dbService.where('members', 'churchId', '==', churchId);
       const cleaned = list.map(m => {
         const { passwordHash, ...rest } = m;
@@ -240,10 +306,16 @@ async function startServer() {
     }
   });
 
-  app.get('/api/members/:id', async (req, res) => {
+  app.get('/api/members/:id', authenticateSession, async (req, res) => {
     try {
+      const session = (req as any).session;
       const data = await dbService.docGet('members', req.params.id);
       if (!data) return res.status(404).json({ error: 'Member not found' });
+
+      if (data.churchId !== session.churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
       delete data.passwordHash;
       res.json(data);
     } catch (err: any) {
@@ -251,9 +323,15 @@ async function startServer() {
     }
   });
 
-  app.post('/api/members', async (req, res) => {
+  app.post('/api/members', authenticateSession, async (req, res) => {
     try {
+      const session = (req as any).session;
       const memberData = req.body;
+
+      if (memberData.churchId !== session.churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
       await dbService.docSet('members', memberData.id, memberData);
       broadcastDbChange('members');
       res.status(201).json(memberData);
@@ -262,9 +340,18 @@ async function startServer() {
     }
   });
 
-  app.put('/api/members/:id', async (req, res) => {
+  app.put('/api/members/:id', authenticateSession, async (req, res) => {
     try {
-      const updated = await dbService.docUpdate('members', req.params.id, req.body);
+      const session = (req as any).session;
+      const data = await dbService.docGet('members', req.params.id);
+      if (!data) return res.status(404).json({ error: 'Member not found' });
+
+      if (data.churchId !== session.churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
+      const updates = { ...req.body, churchId: session.churchId };
+      const updated = await dbService.docUpdate('members', req.params.id, updates);
       broadcastDbChange('members');
       res.json(updated);
     } catch (err: any) {
@@ -273,11 +360,17 @@ async function startServer() {
   });
 
   // Automated Birthday Trigger
-  app.post('/api/birthdays/trigger', async (req, res) => {
+  app.post('/api/birthdays/trigger', authenticateSession, async (req, res) => {
     try {
       const { churchId } = req.body;
+      const session = (req as any).session;
+
       if (!churchId) {
         return res.status(400).json({ error: 'churchId is required.' });
+      }
+
+      if (session.churchId !== churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
       }
 
       // Get current date MM-DD
@@ -332,12 +425,19 @@ async function startServer() {
   });
 
   // 4. Visitors
-  app.get('/api/visitors', async (req, res) => {
+  app.get('/api/visitors', authenticateSession, async (req, res) => {
     try {
       const { churchId } = req.query;
+      const session = (req as any).session;
+
       if (!churchId || typeof churchId !== 'string') {
         return res.status(400).json({ error: 'churchId query parameter is required for multi-tenant isolation.' });
       }
+
+      if (session.churchId !== churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
       const list = await dbService.where('visitors', 'churchId', '==', churchId);
       res.json(list);
     } catch (err: any) {
@@ -345,9 +445,15 @@ async function startServer() {
     }
   });
 
-  app.post('/api/visitors', async (req, res) => {
+  app.post('/api/visitors', authenticateSession, async (req, res) => {
     try {
+      const session = (req as any).session;
       const visitorData = req.body;
+
+      if (visitorData.churchId !== session.churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
       await dbService.docSet('visitors', visitorData.id, visitorData);
       broadcastDbChange('visitors');
       res.status(201).json(visitorData);
@@ -356,9 +462,18 @@ async function startServer() {
     }
   });
 
-  app.put('/api/visitors/:id', async (req, res) => {
+  app.put('/api/visitors/:id', authenticateSession, async (req, res) => {
     try {
-      const updated = await dbService.docUpdate('visitors', req.params.id, req.body);
+      const session = (req as any).session;
+      const data = await dbService.docGet('visitors', req.params.id);
+      if (!data) return res.status(404).json({ error: 'Visitor not found' });
+
+      if (data.churchId !== session.churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
+      const updates = { ...req.body, churchId: session.churchId };
+      const updated = await dbService.docUpdate('visitors', req.params.id, updates);
       broadcastDbChange('visitors');
       res.json(updated);
     } catch (err: any) {
@@ -367,12 +482,19 @@ async function startServer() {
   });
 
   // 5. Attendance Logs
-  app.get('/api/attendance', async (req, res) => {
+  app.get('/api/attendance', authenticateSession, async (req, res) => {
     try {
       const { churchId } = req.query;
+      const session = (req as any).session;
+
       if (!churchId || typeof churchId !== 'string') {
         return res.status(400).json({ error: 'churchId query parameter is required for multi-tenant isolation.' });
       }
+
+      if (session.churchId !== churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
       const list = await dbService.where('attendance', 'churchId', '==', churchId);
       res.json(list);
     } catch (err: any) {
@@ -380,9 +502,15 @@ async function startServer() {
     }
   });
 
-  app.post('/api/attendance', async (req, res) => {
+  app.post('/api/attendance', authenticateSession, async (req, res) => {
     try {
+      const session = (req as any).session;
       const attData = req.body;
+
+      if (attData.churchId !== session.churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
       // Check if already registered
       const list = await dbService.where('attendance', 'memberId', '==', attData.memberId);
       const dup = list.find(a => a.date === attData.date && a.serviceType === attData.serviceType);
@@ -399,8 +527,16 @@ async function startServer() {
     }
   });
 
-  app.delete('/api/attendance/:id', async (req, res) => {
+  app.delete('/api/attendance/:id', authenticateSession, async (req, res) => {
     try {
+      const session = (req as any).session;
+      const data = await dbService.docGet('attendance', req.params.id);
+      if (!data) return res.status(404).json({ error: 'Attendance log not found' });
+
+      if (data.churchId !== session.churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
       await dbService.docDelete('attendance', req.params.id);
       broadcastDbChange('attendance');
       res.json({ success: true });
@@ -410,12 +546,19 @@ async function startServer() {
   });
 
   // 6. Prayer Requests
-  app.get('/api/prayer-requests', async (req, res) => {
+  app.get('/api/prayer-requests', authenticateSession, async (req, res) => {
     try {
       const { churchId } = req.query;
+      const session = (req as any).session;
+
       if (!churchId || typeof churchId !== 'string') {
         return res.status(400).json({ error: 'churchId query parameter is required for multi-tenant isolation.' });
       }
+
+      if (session.churchId !== churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
       const list = await dbService.where('prayerRequests', 'churchId', '==', churchId);
       res.json(list);
     } catch (err: any) {
@@ -423,9 +566,15 @@ async function startServer() {
     }
   });
 
-  app.post('/api/prayer-requests', async (req, res) => {
+  app.post('/api/prayer-requests', authenticateSession, async (req, res) => {
     try {
+      const session = (req as any).session;
       const prayerData = req.body;
+
+      if (prayerData.churchId !== session.churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
       await dbService.docSet('prayerRequests', prayerData.id, prayerData);
       broadcastDbChange('prayerRequests');
       res.status(201).json(prayerData);
@@ -434,9 +583,18 @@ async function startServer() {
     }
   });
 
-  app.put('/api/prayer-requests/:id', async (req, res) => {
+  app.put('/api/prayer-requests/:id', authenticateSession, async (req, res) => {
     try {
-      const updated = await dbService.docUpdate('prayerRequests', req.params.id, req.body);
+      const session = (req as any).session;
+      const data = await dbService.docGet('prayerRequests', req.params.id);
+      if (!data) return res.status(404).json({ error: 'Prayer request not found' });
+
+      if (data.churchId !== session.churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
+      const updates = { ...req.body, churchId: session.churchId };
+      const updated = await dbService.docUpdate('prayerRequests', req.params.id, updates);
       broadcastDbChange('prayerRequests');
       res.json(updated);
     } catch (err: any) {
@@ -445,12 +603,19 @@ async function startServer() {
   });
 
   // 7. Follow Ups
-  app.get('/api/follow-ups', async (req, res) => {
+  app.get('/api/follow-ups', authenticateSession, async (req, res) => {
     try {
       const { churchId } = req.query;
+      const session = (req as any).session;
+
       if (!churchId || typeof churchId !== 'string') {
         return res.status(400).json({ error: 'churchId query parameter is required for multi-tenant isolation.' });
       }
+
+      if (session.churchId !== churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
       const list = await dbService.where('followUps', 'churchId', '==', churchId);
       res.json(list);
     } catch (err: any) {
@@ -458,9 +623,15 @@ async function startServer() {
     }
   });
 
-  app.post('/api/follow-ups', async (req, res) => {
+  app.post('/api/follow-ups', authenticateSession, async (req, res) => {
     try {
+      const session = (req as any).session;
       const fuData = req.body;
+
+      if (fuData.churchId !== session.churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
       await dbService.docSet('followUps', fuData.id, fuData);
       broadcastDbChange('followUps');
       res.status(201).json(fuData);
@@ -469,9 +640,18 @@ async function startServer() {
     }
   });
 
-  app.put('/api/follow-ups/:id', async (req, res) => {
+  app.put('/api/follow-ups/:id', authenticateSession, async (req, res) => {
     try {
-      const updated = await dbService.docUpdate('followUps', req.params.id, req.body);
+      const session = (req as any).session;
+      const data = await dbService.docGet('followUps', req.params.id);
+      if (!data) return res.status(404).json({ error: 'Follow-up log not found' });
+
+      if (data.churchId !== session.churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
+      const updates = { ...req.body, churchId: session.churchId };
+      const updated = await dbService.docUpdate('followUps', req.params.id, updates);
       broadcastDbChange('followUps');
       res.json(updated);
     } catch (err: any) {
@@ -480,12 +660,19 @@ async function startServer() {
   });
 
   // 8. Recent Activities
-  app.get('/api/activities', async (req, res) => {
+  app.get('/api/activities', authenticateSession, async (req, res) => {
     try {
       const { churchId } = req.query;
+      const session = (req as any).session;
+
       if (!churchId || typeof churchId !== 'string') {
         return res.status(400).json({ error: 'churchId query parameter is required for multi-tenant isolation.' });
       }
+
+      if (session.churchId !== churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
       const list = await dbService.where('recentActivities', 'churchId', '==', churchId);
       res.json(list);
     } catch (err: any) {
@@ -493,9 +680,15 @@ async function startServer() {
     }
   });
 
-  app.post('/api/activities', async (req, res) => {
+  app.post('/api/activities', authenticateSession, async (req, res) => {
     try {
+      const session = (req as any).session;
       const activityData = req.body;
+
+      if (activityData.churchId !== session.churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
       await dbService.docSet('recentActivities', activityData.id, activityData);
       broadcastDbChange('recentActivities');
       res.status(201).json(activityData);
@@ -505,12 +698,19 @@ async function startServer() {
   });
 
   // 9. Fellowship Social (Connections)
-  app.get('/api/fellowship/connections', async (req, res) => {
+  app.get('/api/fellowship/connections', authenticateSession, async (req, res) => {
     try {
       const { churchId } = req.query;
+      const session = (req as any).session;
+
       if (!churchId || typeof churchId !== 'string') {
         return res.status(400).json({ error: 'churchId query parameter is required for multi-tenant isolation.' });
       }
+
+      if (session.churchId !== churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
       const list = await dbService.where('fellowshipConnections', 'churchId', '==', churchId);
       res.json(list);
     } catch (err: any) {
@@ -518,9 +718,15 @@ async function startServer() {
     }
   });
 
-  app.post('/api/fellowship/connections', async (req, res) => {
+  app.post('/api/fellowship/connections', authenticateSession, async (req, res) => {
     try {
+      const session = (req as any).session;
       const connData = req.body;
+
+      if (connData.churchId !== session.churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
       await dbService.docSet('fellowshipConnections', connData.id, connData);
       broadcastDbChange('fellowshipConnections');
       res.status(201).json(connData);
@@ -529,9 +735,18 @@ async function startServer() {
     }
   });
 
-  app.put('/api/fellowship/connections/:id', async (req, res) => {
+  app.put('/api/fellowship/connections/:id', authenticateSession, async (req, res) => {
     try {
-      const updated = await dbService.docUpdate('fellowshipConnections', req.params.id, req.body);
+      const session = (req as any).session;
+      const data = await dbService.docGet('fellowshipConnections', req.params.id);
+      if (!data) return res.status(404).json({ error: 'Fellowship connection not found' });
+
+      if (data.churchId !== session.churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
+      const updates = { ...req.body, churchId: session.churchId };
+      const updated = await dbService.docUpdate('fellowshipConnections', req.params.id, updates);
       broadcastDbChange('fellowshipConnections');
       res.json(updated);
     } catch (err: any) {
@@ -539,8 +754,16 @@ async function startServer() {
     }
   });
 
-  app.delete('/api/fellowship/connections/:id', async (req, res) => {
+  app.delete('/api/fellowship/connections/:id', authenticateSession, async (req, res) => {
     try {
+      const session = (req as any).session;
+      const data = await dbService.docGet('fellowshipConnections', req.params.id);
+      if (!data) return res.status(404).json({ error: 'Fellowship connection not found' });
+
+      if (data.churchId !== session.churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
       await dbService.docDelete('fellowshipConnections', req.params.id);
       broadcastDbChange('fellowshipConnections');
       res.json({ success: true });
@@ -550,12 +773,19 @@ async function startServer() {
   });
 
   // 10. Fellowship Social (Notes/Messages)
-  app.get('/api/fellowship/notes', async (req, res) => {
+  app.get('/api/fellowship/notes', authenticateSession, async (req, res) => {
     try {
       const { churchId } = req.query;
+      const session = (req as any).session;
+
       if (!churchId || typeof churchId !== 'string') {
         return res.status(400).json({ error: 'churchId query parameter is required for multi-tenant isolation.' });
       }
+
+      if (session.churchId !== churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
       const list = await dbService.where('fellowshipNotes', 'churchId', '==', churchId);
       res.json(list);
     } catch (err: any) {
@@ -563,9 +793,15 @@ async function startServer() {
     }
   });
 
-  app.post('/api/fellowship/notes', async (req, res) => {
+  app.post('/api/fellowship/notes', authenticateSession, async (req, res) => {
     try {
+      const session = (req as any).session;
       const noteData = req.body;
+
+      if (noteData.churchId !== session.churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
       await dbService.docSet('fellowshipNotes', noteData.id, noteData);
       broadcastDbChange('fellowshipNotes');
       res.status(201).json(noteData);
@@ -575,8 +811,14 @@ async function startServer() {
   });
 
   // 11. Settings (AppSettings)
-  app.get('/api/settings/:churchId', async (req, res) => {
+  app.get('/api/settings/:churchId', authenticateSession, async (req, res) => {
     try {
+      const session = (req as any).session;
+
+      if (session.churchId !== req.params.churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
       const data = await dbService.docGet('appSettings', req.params.churchId);
       if (!data) {
         return res.json({
@@ -592,9 +834,15 @@ async function startServer() {
     }
   });
 
-  app.post('/api/settings/:churchId', async (req, res) => {
+  app.post('/api/settings/:churchId', authenticateSession, async (req, res) => {
     try {
       const { mapName, churchName, themeColor, logoName } = req.body;
+      const session = (req as any).session;
+
+      if (session.churchId !== req.params.churchId) {
+        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      }
+
       const existing = await dbService.docGet('appSettings', req.params.churchId) || {};
       const updated = {
         ...existing,
