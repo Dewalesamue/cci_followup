@@ -11,7 +11,9 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  CartesianGrid
+  CartesianGrid,
+  AreaChart,
+  Area
 } from 'recharts';
 import { BarChart3, Users, HeartHandshake, PhoneCall, TrendingUp, Sparkles, Download } from 'lucide-react';
 
@@ -68,6 +70,39 @@ export default function ReportsView({
       completedFollowups: followups.filter(f => f.status === 'Restored').length
     };
   }, [members, visitors, prayerRequests, followups]);
+
+  // Calculate visitor and member monthly growth trend over the last 12 months
+  const last12MonthsData = useMemo(() => {
+    const data = [];
+    const now = new Date();
+    
+    // Generate the last 12 months in chronological order
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const month = d.getMonth(); // 0-11
+      const monthLabel = d.toLocaleString('default', { month: 'short' });
+      const yearShort = String(year).slice(-2);
+      const key = `${year}-${String(month + 1).padStart(2, '0')}`; // YYYY-MM
+      
+      const newMembersCount = members.filter(m => {
+        if (!m.dateJoined) return false;
+        return m.dateJoined.startsWith(key);
+      }).length;
+      
+      const newVisitorsCount = visitors.filter(v => {
+        if (!v.dateVisited) return false;
+        return v.dateVisited.startsWith(key);
+      }).length;
+      
+      data.push({
+        month: `${monthLabel} '${yearShort}`,
+        'New Members': newMembersCount,
+        'New Visitors': newVisitorsCount,
+      });
+    }
+    return data;
+  }, [members, visitors]);
 
   // CSV Export utility
   const exportToCSV = (data: any[], filename: string) => {
@@ -209,6 +244,76 @@ export default function ReportsView({
           </div>
         </div>
 
+      </div>
+
+      {/* 12-Month Growth Trends Chart */}
+      <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-blue-600" />
+              <span>12-Month Growth Trends</span>
+            </h3>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              Comparative monthly trends for newly registered members and first-time visitors over the last 12 months.
+            </p>
+          </div>
+          <div className="flex items-center space-x-4 text-xs font-semibold">
+            <div className="flex items-center space-x-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
+              <span className="text-slate-600">New Members</span>
+            </div>
+            <div className="flex items-center space-x-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+              <span className="text-slate-600">First-Time Visitors</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="h-72 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={last12MonthsData} margin={{ top: 10, right: 10, left: -25, bottom: 5 }}>
+              <defs>
+                <linearGradient id="colorMembers" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#2563eb" stopOpacity={0.15}/>
+                  <stop offset="95%" stopColor="#2563eb" stopOpacity={0.01}/>
+                </linearGradient>
+                <linearGradient id="colorVisitors" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.15}/>
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0.01}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis dataKey="month" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} />
+              <YAxis stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: '#ffffff', 
+                  border: '1px solid #f1f5f9', 
+                  borderRadius: '12px',
+                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
+                  fontSize: '11px'
+                }} 
+              />
+              <Area 
+                type="monotone" 
+                dataKey="New Members" 
+                stroke="#2563eb" 
+                strokeWidth={2} 
+                fillOpacity={1} 
+                fill="url(#colorMembers)" 
+              />
+              <Area 
+                type="monotone" 
+                dataKey="New Visitors" 
+                stroke="#10b981" 
+                strokeWidth={2} 
+                fillOpacity={1} 
+                fill="url(#colorVisitors)" 
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
       {/* Charts breakdown Row */}

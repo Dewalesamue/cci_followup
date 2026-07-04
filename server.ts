@@ -323,13 +323,26 @@ async function startServer() {
     }
   });
 
-  app.post('/api/members', authenticateSession, async (req, res) => {
+  app.post('/api/members', async (req, res) => {
     try {
-      const session = (req as any).session;
+      const authHeader = req.headers.authorization;
+      let session = null;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        session = verifyToken(token);
+      }
+
       const memberData = req.body;
 
-      if (memberData.churchId !== session.churchId) {
-        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      if (session) {
+        if (memberData.churchId !== session.churchId) {
+          return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+        }
+      } else {
+        const church = await dbService.docGet('churches', memberData.churchId);
+        if (!church) {
+          return res.status(400).json({ error: 'Selected church/assembly does not exist.' });
+        }
       }
 
       await dbService.docSet('members', memberData.id, memberData);
@@ -445,13 +458,26 @@ async function startServer() {
     }
   });
 
-  app.post('/api/visitors', authenticateSession, async (req, res) => {
+  app.post('/api/visitors', async (req, res) => {
     try {
-      const session = (req as any).session;
+      const authHeader = req.headers.authorization;
+      let session = null;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        session = verifyToken(token);
+      }
+
       const visitorData = req.body;
 
-      if (visitorData.churchId !== session.churchId) {
-        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      if (session) {
+        if (visitorData.churchId !== session.churchId) {
+          return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+        }
+      } else {
+        const church = await dbService.docGet('churches', visitorData.churchId);
+        if (!church) {
+          return res.status(400).json({ error: 'Selected church/assembly does not exist.' });
+        }
       }
 
       await dbService.docSet('visitors', visitorData.id, visitorData);
@@ -502,13 +528,26 @@ async function startServer() {
     }
   });
 
-  app.post('/api/attendance', authenticateSession, async (req, res) => {
+  app.post('/api/attendance', async (req, res) => {
     try {
-      const session = (req as any).session;
+      const authHeader = req.headers.authorization;
+      let session = null;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        session = verifyToken(token);
+      }
+
       const attData = req.body;
 
-      if (attData.churchId !== session.churchId) {
-        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      if (session) {
+        if (attData.churchId !== session.churchId) {
+          return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+        }
+      } else {
+        const church = await dbService.docGet('churches', attData.churchId);
+        if (!church) {
+          return res.status(400).json({ error: 'Selected church/assembly does not exist.' });
+        }
       }
 
       // Check if already registered
@@ -566,13 +605,26 @@ async function startServer() {
     }
   });
 
-  app.post('/api/prayer-requests', authenticateSession, async (req, res) => {
+  app.post('/api/prayer-requests', async (req, res) => {
     try {
-      const session = (req as any).session;
+      const authHeader = req.headers.authorization;
+      let session = null;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        session = verifyToken(token);
+      }
+
       const prayerData = req.body;
 
-      if (prayerData.churchId !== session.churchId) {
-        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      if (session) {
+        if (prayerData.churchId !== session.churchId) {
+          return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+        }
+      } else {
+        const church = await dbService.docGet('churches', prayerData.churchId);
+        if (!church) {
+          return res.status(400).json({ error: 'Selected church/assembly does not exist.' });
+        }
       }
 
       await dbService.docSet('prayerRequests', prayerData.id, prayerData);
@@ -680,13 +732,26 @@ async function startServer() {
     }
   });
 
-  app.post('/api/activities', authenticateSession, async (req, res) => {
+  app.post('/api/activities', async (req, res) => {
     try {
-      const session = (req as any).session;
+      const authHeader = req.headers.authorization;
+      let session = null;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        session = verifyToken(token);
+      }
+
       const activityData = req.body;
 
-      if (activityData.churchId !== session.churchId) {
-        return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+      if (session) {
+        if (activityData.churchId !== session.churchId) {
+          return res.status(403).json({ error: 'Access denied: Tenant mismatch.' });
+        }
+      } else {
+        const church = await dbService.docGet('churches', activityData.churchId);
+        if (!church) {
+          return res.status(400).json({ error: 'Selected church/assembly does not exist.' });
+        }
       }
 
       await dbService.docSet('recentActivities', activityData.id, activityData);

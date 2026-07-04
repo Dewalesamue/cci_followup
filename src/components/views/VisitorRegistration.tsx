@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { visitorService } from '../../services/visitorService';
 import { authService } from '../../services/authService';
-import { CheckCircle, Heart, User, Phone, Sparkles, MessageCircle, Calendar, ArrowLeft, Building2 } from 'lucide-react';
+import { CheckCircle, Heart, User, Phone, Sparkles, MessageCircle, Calendar, ArrowLeft, Building2, AlertCircle } from 'lucide-react';
 
 interface VisitorRegistrationProps {
   onBackToPortal: () => void;
@@ -108,40 +108,42 @@ export default function VisitorRegistration({ onBackToPortal, mapName: propMapNa
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
     setIsSubmitting(true);
 
-    setTimeout(() => {
-      try {
-        visitorService.addVisitor({
-          fullName: formData.fullName,
-          phoneNumber: formData.phoneNumber,
-          gender: formData.gender,
-          invitedBy: formData.invitedBy,
-          dateVisited: formData.dateVisited,
-          prayerRequest: formData.prayerRequest || undefined,
-        }, formData.churchId);
+    try {
+      // Simulate small register latency for polished UI experience
+      await new Promise(resolve => setTimeout(resolve, 600));
 
-        setIsSuccess(true);
-        // Reset form but preserve churchId for consecutive entries
-        setFormData(prev => ({
-          ...prev,
-          fullName: '',
-          phoneNumber: '',
-          gender: 'Male',
-          invitedBy: '',
-          dateVisited: new Date().toISOString().split('T')[0],
-          prayerRequest: '',
-        }));
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setIsSubmitting(false);
-      }
-    }, 600);
+      await visitorService.addVisitor({
+        fullName: formData.fullName,
+        phoneNumber: formData.phoneNumber,
+        gender: formData.gender,
+        invitedBy: formData.invitedBy,
+        dateVisited: formData.dateVisited,
+        prayerRequest: formData.prayerRequest || undefined,
+      }, formData.churchId);
+
+      setIsSuccess(true);
+      // Reset form but preserve churchId for consecutive entries
+      setFormData(prev => ({
+        ...prev,
+        fullName: '',
+        phoneNumber: '',
+        gender: 'Male',
+        invitedBy: '',
+        dateVisited: new Date().toISOString().split('T')[0],
+        prayerRequest: '',
+      }));
+    } catch (err: any) {
+      console.error(err);
+      setErrors(prev => ({ ...prev, form: err.message || 'Failed to save visitor on backend.' }));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -197,6 +199,12 @@ export default function VisitorRegistration({ onBackToPortal, mapName: propMapNa
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
+              {errors.form && (
+                <div className="p-3.5 bg-red-50 border border-red-100 text-red-600 rounded-2xl text-xs font-semibold flex items-center space-x-2.5 shadow-2xs animate-fade-in">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{errors.form}</span>
+                </div>
+              )}
               {/* Church Selector (Multi-Tenant Hub Gateway) */}
               <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-2">
                 <div className="flex items-center justify-between">

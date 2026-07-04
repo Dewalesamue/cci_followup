@@ -248,7 +248,7 @@ export default function CheckInView({ onBackToPortal, defaultChurchId = 'futamap
       // Simulate small check-in server latency for polished UI experience
       await new Promise(resolve => setTimeout(resolve, 800));
 
-      const record = attendanceService.addAttendance(
+      const record = await attendanceService.addAttendance(
         checkedMember.id,
         checkedMember.fullName,
         detectedServiceType,

@@ -393,6 +393,31 @@ class DatabaseService {
         }
         console.log('✓ Care database environment cleared & activated!');
       }
+
+      // Seed a default member if members collection is empty
+      const members = await this.getCollection('members');
+      if (members.length === 0) {
+        console.log('🚀 Seeding demo members...');
+        const demoMember = {
+          id: 'm_demo_1',
+          fullName: 'Samuel Adebayo',
+          phoneNumber: '+234 812 345 6789',
+          gender: 'Male',
+          department: 'Media',
+          level: '400 Level',
+          faculty: 'School of Computing (SOC)',
+          residence: 'FUTA Off-Campus',
+          birthday: '2002-06-15',
+          dateJoined: '2026-01-01',
+          email: 'adelekesam10@gmail.com',
+          mapName: 'Celebration Group',
+          passwordHash: 'mock_bcrypt_pbkdf2_2ec9aec', // celebration2026 hash
+          churchId: 'futamap',
+          status: 'Active'
+        };
+        await this.docSet('members', demoMember.id, demoMember);
+        console.log('✓ Demo member seeded successfully!');
+      }
     } catch (err) {
       console.error('Error during initial database seed:', err);
     }

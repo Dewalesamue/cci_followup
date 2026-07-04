@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { memberService } from '../../services/memberService';
 import { authService, hashPassword } from '../../services/authService';
-import { CheckCircle2, User, Phone, BookOpen, GraduationCap, Building, MapPin, Calendar, Mail, Sparkles, ArrowLeft, Building2, Lock, Eye, EyeOff } from 'lucide-react';
+import { CheckCircle2, User, Phone, BookOpen, GraduationCap, Building, MapPin, Calendar, Mail, Sparkles, ArrowLeft, Building2, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 interface MemberRegistrationProps {
   onBackToPortal: () => void;
@@ -135,51 +135,53 @@ export default function MemberRegistration({ onBackToPortal, mapName: propMapNam
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
     setIsSubmitting(true);
 
-    setTimeout(() => {
-      try {
-        memberService.addMember({
-          fullName: formData.fullName,
-          phoneNumber: formData.phoneNumber,
-          gender: formData.gender,
-          department: formData.department,
-          level: formData.level,
-          faculty: formData.faculty || "Sciences",
-          residence: formData.residence || "FUTA Off-Campus",
-          birthday: formData.birthday,
-          dateJoined: formData.dateJoined,
-          email: formData.email,
-          mapName: activeMapName,
-          passwordHash: hashPassword(formData.password)
-        }, formData.churchId);
-        
-        setIsSuccess(true);
-        // Reset form but preserve churchId for consecutive edits
-        setFormData(prev => ({
-          ...prev,
-          fullName: '',
-          phoneNumber: '',
-          gender: 'Male',
-          department: '',
-          level: '100 Level',
-          faculty: '',
-          residence: '',
-          birthday: '',
-          dateJoined: new Date().toISOString().split('T')[0],
-          email: '',
-          password: '',
-        }));
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setIsSubmitting(false);
-      }
-    }, 600);
+    try {
+      // Simulate small register latency for polished UI experience
+      await new Promise(resolve => setTimeout(resolve, 600));
+
+      await memberService.addMember({
+        fullName: formData.fullName,
+        phoneNumber: formData.phoneNumber,
+        gender: formData.gender,
+        department: formData.department,
+        level: formData.level,
+        faculty: formData.faculty || "Sciences",
+        residence: formData.residence || "FUTA Off-Campus",
+        birthday: formData.birthday,
+        dateJoined: formData.dateJoined,
+        email: formData.email,
+        mapName: activeMapName,
+        passwordHash: hashPassword(formData.password)
+      }, formData.churchId);
+      
+      setIsSuccess(true);
+      // Reset form but preserve churchId for consecutive edits
+      setFormData(prev => ({
+        ...prev,
+        fullName: '',
+        phoneNumber: '',
+        gender: 'Male',
+        department: '',
+        level: '100 Level',
+        faculty: '',
+        residence: '',
+        birthday: '',
+        dateJoined: new Date().toISOString().split('T')[0],
+        email: '',
+        password: '',
+      }));
+    } catch (e: any) {
+      console.error(e);
+      setErrors(prev => ({ ...prev, form: e.message || 'Failed to register member on backend.' }));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -236,6 +238,12 @@ export default function MemberRegistration({ onBackToPortal, mapName: propMapNam
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
+              {errors.form && (
+                <div className="p-3.5 bg-red-50 border border-red-100 text-red-600 rounded-2xl text-xs font-semibold flex items-center space-x-2.5 shadow-2xs animate-fade-in">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{errors.form}</span>
+                </div>
+              )}
               {/* Church Selector (Multi-Tenant Hub Gateway) */}
               <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-2">
                 <div className="flex items-center justify-between">
